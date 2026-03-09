@@ -1,0 +1,71 @@
+export interface Client {
+  id: number;
+  name: string;
+  document: string;
+  phone: string;
+  address: string;
+  created_at: string;
+}
+
+export interface Material {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+  description: string;
+}
+
+export interface Service {
+  id: number;
+  name: string;
+  price: number;
+  description: string;
+  minutes_per_meter?: number;
+}
+
+export interface QuoteItem {
+  id?: number;
+  quote_id?: number;
+  material_id: number;
+  length: number;
+  width: number;
+  quantity: number;
+  subtotal_m2: number;
+  description?: string;
+  material_name?: string;
+}
+
+export interface QuoteService {
+  id?: number;
+  quote_id?: number;
+  service_id: number;
+  quantity: number;
+  unit_price: number;
+  description?: string;
+  service_name?: string;
+}
+
+export interface Quote {
+  id: number;
+  client_id: number;
+  project_name: string;
+  total_value: number;
+  discount: number;
+  status: 'Rascunho' | 'Pendente' | 'Enviado' | 'Aprovado';
+  created_at: string;
+  client_name?: string;
+  items?: QuoteItem[];
+  services?: QuoteService[];
+}
+
+export interface DashboardStats {
+  pendingQuotes: number;
+  totalClients: number;
+  monthlyRevenue: number;
+  inProduction: number;
+}
+
+export interface DescriptionTemplate {
+  id: number;
+  text: string;
+}
