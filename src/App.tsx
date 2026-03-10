@@ -147,10 +147,10 @@ export default function App() {
         <div className="p-4 border-t border-border-dark">
           <NavItem icon={<Settings />} label="Configurações" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} collapsed={!isSidebarOpen} />
           <div className="mt-4 flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">JS</div>
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">AS</div>
             {isSidebarOpen && (
               <div className="flex flex-col overflow-hidden">
-                <span className="text-sm font-semibold truncate">João Silva</span>
+                <span className="text-sm font-semibold truncate">Ancelmo Siqueira</span>
                 <span className="text-xs text-slate-500 truncate">Administrador</span>
               </div>
             )}
@@ -1899,6 +1899,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showOpenPlans, setShowOpenPlans] = useState(false);
   const [savedPlans, setSavedPlans] = useState<any[]>([]);
+  const [viewScale, setViewScale] = useState(5);
 
   const fetchSavedPlans = () => {
     fetch('/api/cut-plans').then(r => r.json()).then(setSavedPlans);
@@ -2111,8 +2112,8 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     setDraggedItemId(id);
     const rect = e.currentTarget.getBoundingClientRect();
     setDragOffset({
-      x: (e.clientX - rect.left) * 5, // Scale back to mm
-      y: (e.clientY - rect.top) * 5
+      x: (e.clientX - rect.left) * viewScale, // Scale back to mm
+      y: (e.clientY - rect.top) * viewScale
     });
   };
 
@@ -2127,8 +2128,8 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     if (!itemInPlan) return;
 
     // Calculate proposed position
-    let newX = (e.clientX - rect.left) * 5 - dragOffset.x;
-    let newY = (e.clientY - rect.top) * 5 - dragOffset.y;
+    let newX = (e.clientX - rect.left) * viewScale - dragOffset.x;
+    let newY = (e.clientY - rect.top) * viewScale - dragOffset.y;
 
     // Bounds check
     newX = Math.max(0, Math.min(sheetWidth - itemInPlan.width, newX));
@@ -2432,7 +2433,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
         <div className="xl:col-span-3 space-y-4">
           <div className="bg-secondary-dark p-4 sm:p-6 rounded-xl border border-border-dark overflow-hidden relative min-h-[500px] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-sm font-bold flex items-center gap-2"><Scissors size={16} className="text-primary" /> Visualização</h3>
                 <button 
@@ -2442,6 +2443,17 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 >
                   <RotateCw size={14} />
                 </button>
+                
+                <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-white/5 ml-2">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Zoom</span>
+                  <input 
+                    type="range" min="2" max="15" step="0.5" 
+                    value={viewScale} 
+                    onChange={e => setViewScale(parseFloat(e.target.value))}
+                    className="w-16 sm:w-24 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <span className="text-[10px] text-primary font-mono w-8 text-center">1:{viewScale.toFixed(1)}</span>
+                </div>
               </div>
               {plan.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-end">
@@ -2477,36 +2489,37 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
             ) : (
               <div 
                 id="sheet-container"
-                className="relative flex-1 bg-background-dark border-2 border-dashed border-slate-700 rounded-lg overflow-auto p-4 flex flex-col items-center gap-8 cursor-crosshair select-none scrollbar-thin"
+                className="relative flex-1 bg-background-dark border-2 border-dashed border-slate-700 rounded-lg overflow-auto p-4 cursor-crosshair select-none scrollbar-thin"
                 onMouseMove={handleDrag}
                 onMouseUp={handleDragEnd}
                 onMouseLeave={handleDragEnd}
               >
-                {Array.from({ length: Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1 }).map((_, sIdx) => (
-                  <div key={sIdx} className="relative flex flex-col items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chapa {sIdx + 1}</span>
-                    <div 
-                      className="relative bg-slate-800 border border-slate-600 shadow-2xl transition-all"
-                      style={{ 
-                        width: `${sheetWidth / 5}px`, 
-                        height: `${sheetHeight / 5}px`,
-                        minWidth: `${sheetWidth / 5}px`,
-                        minHeight: `${sheetHeight / 5}px`
-                      }}
-                    >
-                      {plan.filter(item => (item.sheetIndex || 0) === sIdx).map((item) => (
-                        <div 
-                          key={item.id}
-                          className={`absolute border flex flex-col items-center justify-center overflow-hidden group transition-all cursor-move ${draggedItemId === item.id ? 'z-50 ring-2 ring-primary shadow-2xl' : ''} ${item.material_name === 'Manual' ? 'bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/40' : 'bg-primary/20 border-primary/50 hover:bg-primary/40'}`}
-                          style={{
-                            left: `${item.x / 5}px`,
-                            top: `${item.y / 5}px`,
-                            width: `${item.width / 5}px`,
-                            height: `${item.length / 5}px`
-                          }}
-                          onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)}
-                          title={`${item.description} (${item.width}x${item.length}mm) - ${item.material_name} - ${item.finishing || 'Polido'}`}
-                        >
+                <div className="min-w-max flex flex-col items-center gap-8 pb-8">
+                  {Array.from({ length: Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1 }).map((_, sIdx) => (
+                    <div key={sIdx} className="relative flex flex-col items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chapa {sIdx + 1}</span>
+                      <div 
+                        className="relative bg-slate-800 border border-slate-600 shadow-2xl transition-all"
+                        style={{ 
+                          width: `${sheetWidth / viewScale}px`, 
+                          height: `${sheetHeight / viewScale}px`,
+                          minWidth: `${sheetWidth / viewScale}px`,
+                          minHeight: `${sheetHeight / viewScale}px`
+                        }}
+                      >
+                        {plan.filter(item => (item.sheetIndex || 0) === sIdx).map((item) => (
+                          <div 
+                            key={item.id}
+                            className={`absolute border flex flex-col items-center justify-center overflow-hidden group transition-all cursor-move ${draggedItemId === item.id ? 'z-50 ring-2 ring-primary shadow-2xl' : ''} ${item.material_name === 'Manual' ? 'bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/40' : 'bg-primary/20 border-primary/50 hover:bg-primary/40'}`}
+                            style={{
+                              left: `${item.x / viewScale}px`,
+                              top: `${item.y / viewScale}px`,
+                              width: `${item.width / viewScale}px`,
+                              height: `${item.length / viewScale}px`
+                            }}
+                            onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)}
+                            title={`${item.description} (${item.width}x${item.length}mm) - ${item.material_name} - ${item.finishing || 'Polido'}`}
+                          >
                           <span className="text-[7px] font-bold text-white truncate w-full text-center px-1">{item.description}</span>
                           <span className="text-[6px] text-slate-400">{item.width}x{item.length}</span>
                           
@@ -2535,12 +2548,13 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             )}
             
             <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-[10px] text-slate-500 italic">
-                * Escala 1:5 | Dimensões em mm
+                * Escala 1:{viewScale.toFixed(1)} | Dimensões em mm
               </div>
               {plan.length > 0 && (
                 <div className="flex gap-2 w-full sm:w-auto">
