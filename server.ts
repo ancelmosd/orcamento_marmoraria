@@ -119,6 +119,21 @@ db.exec(`
     }
   }
 
+  // Add cut_plans table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS cut_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      items TEXT NOT NULL,
+      plan TEXT NOT NULL,
+      manual_positions TEXT NOT NULL,
+      sheet_width INTEGER,
+      sheet_height INTEGER,
+      saw_thickness INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -282,7 +297,12 @@ async function startServer() {
     const quote = db.prepare("SELECT * FROM quotes WHERE id = ?").get(id) as any;
     if (!quote) return res.status(404).json({ error: "Quote not found" });
     
-    const items = db.prepare("SELECT * FROM quote_items WHERE quote_id = ?").all(id);
+    const items = db.prepare(`
+      SELECT qi.*, m.name as material_name 
+      FROM quote_items qi 
+      JOIN materials m ON qi.material_id = m.id 
+      WHERE qi.quote_id = ?
+    `).all(id);
     const services = db.prepare("SELECT * FROM quote_services WHERE quote_id = ?").all(id);
     
     res.json({ ...quote, items, services });
@@ -333,6 +353,38 @@ async function startServer() {
     db.prepare("DELETE FROM quote_items WHERE quote_id = ?").run(id);
     db.prepare("DELETE FROM quote_services WHERE quote_id = ?").run(id);
     db.prepare("DELETE FROM quotes WHERE id = ?").run(id);
+    res.json({ success: true });
+  });
+
+  app.get("/api/cut-plans", (req, res) => {
+    const plans = db.prepare("SELECT * FROM cut_plans ORDER BY created_at DESC").all();
+    res.json(plans);
+  });
+
+  app.post("/api/cut-plans", (req, res) => {
+    const { name, items, plan, manual_positions, sheet_width, sheet_height, saw_thickness } = req.body;
+    const result = db.prepare(`
+      INSERT INTO cut_plans (name, items, plan, manual_positions, sheet_width, sheet_height, saw_thickness) 
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(name, JSON.stringify(items), JSON.stringify(plan), JSON.stringify(manual_positions), sheet_width, sheet_height, saw_thickness);
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.get("/api/cut-plans/:id", (req, res) => {
+    const { id } = req.params;
+    const plan = db.prepare("SELECT * FROM cut_plans WHERE id = ?").get(id) as any;
+    if (!plan) return res.status(404).json({ error: "Plan not found" });
+    res.json({
+      ...plan,
+      items: JSON.parse(plan.items),
+      plan: JSON.parse(plan.plan),
+      manual_positions: JSON.parse(plan.manual_positions)
+    });
+  });
+
+  app.delete("/api/cut-plans/:id", (req, res) => {
+    const { id } = req.params;
+    db.prepare("DELETE FROM cut_plans WHERE id = ?").run(id);
     res.json({ success: true });
   });
 

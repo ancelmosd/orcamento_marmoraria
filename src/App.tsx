@@ -17,9 +17,19 @@ import {
   Construction,
   LogOut,
   Menu,
-  X
+  X,
+  Scissors,
+  RotateCw,
+  Move,
+  CheckSquare,
+  Square,
+  Edit2,
+  Save,
+  FolderOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Client, Material, Quote, DashboardStats, Service } from './types';
 
 // Mock data for initial render
@@ -36,6 +46,12 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [clientAction, setClientAction] = useState<string | null>(null);
   const [editQuoteId, setEditQuoteId] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     if (activeTab === 'dashboard') {
@@ -55,14 +71,20 @@ export default function App() {
     } else if (action === 'new-quote') {
       setEditQuoteId(null);
       setActiveTab('quotes');
+    } else if (action === 'view-history') {
+      setActiveTab('history');
+    } else if (action.startsWith('edit-quote-')) {
+      const id = parseInt(action.replace('edit-quote-', ''));
+      setEditQuoteId(id);
+      setActiveTab('quotes');
     }
   };
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <DashboardView stats={stats} onAction={handleQuickAction} />;
-      case 'clients': return <ClientsView initialAction={clientAction} onActionComplete={() => setClientAction(null)} />;
-      case 'materials': return <MaterialsView />;
+      case 'clients': return <ClientsView initialAction={clientAction} onActionComplete={() => setClientAction(null)} showToast={showToast} />;
+      case 'materials': return <MaterialsView showToast={showToast} />;
       case 'quotes': return (
         <QuotesView 
           editId={editQuoteId} 
@@ -74,18 +96,21 @@ export default function App() {
             setEditQuoteId(null);
             setActiveTab('history');
           }}
+          showToast={showToast}
         />
       );
-      case 'services': return <ServicesView />;
+      case 'cut-plan': return <CutPlanView showToast={showToast} />;
+      case 'services': return <ServicesView showToast={showToast} />;
       case 'history': return (
         <HistoryView 
           onEdit={(id) => {
             setEditQuoteId(id);
             setActiveTab('quotes');
           }} 
+          showToast={showToast}
         />
       );
-      case 'settings': return <SettingsView />;
+      case 'settings': return <SettingsView showToast={showToast} />;
       default: return <DashboardView stats={stats} onAction={handleQuickAction} />;
     }
   };
@@ -111,6 +136,7 @@ export default function App() {
           <NavItem icon={<Users />} label="Clientes" active={activeTab === 'clients'} onClick={() => setActiveTab('clients')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Package />} label="Materiais" active={activeTab === 'materials'} onClick={() => setActiveTab('materials')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => setActiveTab('cut-plan')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Calculator />} label="Orçamentos" active={activeTab === 'quotes'} onClick={() => {
             setEditQuoteId(null);
             setActiveTab('quotes');
@@ -173,6 +199,25 @@ export default function App() {
             </motion.div>
           </AnimatePresence>
         </div>
+
+        {/* Toast Notification */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: 50, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: 20, x: '-50%' }}
+              className={`fixed bottom-8 left-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-3 border ${
+                toast.type === 'success' 
+                  ? 'bg-emerald-500 text-white border-emerald-400' 
+                  : 'bg-red-500 text-white border-red-400'
+              }`}
+            >
+              {toast.type === 'success' ? <CheckSquare size={20} /> : <X size={20} />}
+              {toast.message}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
@@ -200,6 +245,7 @@ function NavItem({ icon, label, active, onClick, collapsed }: { icon: React.Reac
 
 function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (action: string) => void }) {
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [quotes, setQuotes] = useState<any[]>([]);
 
   useEffect(() => {
     fetch('/api/materials')
@@ -210,6 +256,15 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
         setMaterials(sorted.slice(0, 3)); // Show top 3
       })
       .catch(err => console.error("Error fetching materials for dashboard:", err));
+
+    fetch('/api/quotes')
+      .then(res => res.json())
+      .then(data => {
+        // Sort by date descending and take 5
+        const sorted = [...data].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setQuotes(sorted.slice(0, 5));
+      })
+      .catch(err => console.error("Error fetching quotes for dashboard:", err));
   }, []);
 
   return (
@@ -262,7 +317,7 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Calculator className="text-primary w-5 h-5" /> Últimos Orçamentos
             </h2>
-            <button className="text-primary text-sm font-bold hover:underline">Ver todos</button>
+            <button onClick={() => onAction('view-history')} className="text-primary text-sm font-bold hover:underline">Ver todos</button>
           </div>
             <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
               <table className="w-full text-left min-w-[600px]">
@@ -276,9 +331,21 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-dark">
-                  <TableRow client="Ricardo Oliveira" project="Cozinha" date="12 Out" value="R$ 4.500" status="Enviado" onEdit={() => onAction('new-quote')} />
-                  <TableRow client="Marina Santos" project="Banheiro" date="11 Out" value="R$ 2.100" status="Aprovado" onEdit={() => onAction('new-quote')} />
-                  <TableRow client="Condomínio Solar" project="Soleiras" date="10 Out" value="R$ 1.850" status="Pendente" onEdit={() => onAction('new-quote')} />
+                  {quotes.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500 text-sm">Nenhum orçamento recente.</td>
+                    </tr>
+                  ) : quotes.map(q => (
+                    <TableRow 
+                      key={q.id}
+                      client={q.client_name} 
+                      project={q.project_name} 
+                      date={new Date(q.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} 
+                      value={`R$ ${q.total_value.toLocaleString()}`} 
+                      status={q.status} 
+                      onEdit={() => onAction(`edit-quote-${q.id}`)} 
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -345,13 +412,19 @@ function StockProgress({ label, value, amount, color = 'primary' }: any) {
 
 function TableRow({ client, project, date, value, status, onEdit }: any) {
   const statusColors: any = {
-    Enviado: 'bg-blue-500/10 text-blue-400',
-    Aprovado: 'bg-emerald-500/10 text-emerald-400',
-    Pendente: 'bg-orange-500/10 text-orange-400',
-    Rascunho: 'bg-slate-500/10 text-slate-400'
+    'Pendente': 'text-orange-500 bg-orange-500/10',
+    'Aprovado': 'text-emerald-500 bg-emerald-500/10',
+    'Em Produção': 'text-yellow-400 bg-yellow-400/10',
+    'Entregue': 'text-indigo-500 bg-indigo-500/10',
+    'Cancelado': 'text-red-500 bg-red-500/10',
+    'Enviado': 'bg-blue-500/10 text-blue-400',
+    'Rascunho': 'bg-slate-500/10 text-slate-400'
   };
   return (
-    <tr className="hover:bg-white/5 transition-colors group">
+    <tr 
+      className="hover:bg-white/5 transition-colors group cursor-pointer"
+      onClick={onEdit}
+    >
       <td className="px-6 py-4">
         <div className="flex flex-col">
           <span className="font-bold text-sm">{client}</span>
@@ -361,17 +434,14 @@ function TableRow({ client, project, date, value, status, onEdit }: any) {
       <td className="px-6 py-4 text-slate-400 text-sm">{date}</td>
       <td className="px-6 py-4 font-bold text-sm">{value}</td>
       <td className="px-6 py-4">
-        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[status]}`}>{status}</span>
+        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusColors[status] || 'text-slate-500 bg-slate-500/10'}`}>{status}</span>
       </td>
       <td className="px-6 py-4 text-right">
-        {onEdit && (
-          <button 
-            onClick={onEdit}
-            className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
-          >
+        <div className="flex justify-end">
+          <div className="p-1.5 bg-white/5 rounded-md group-hover:bg-primary group-hover:text-white transition-colors text-primary">
             <Settings size={14} />
-          </button>
-        )}
+          </div>
+        </div>
       </td>
     </tr>
   );
@@ -379,7 +449,7 @@ function TableRow({ client, project, date, value, status, onEdit }: any) {
 
 // --- Placeholder Views (To be implemented in next steps) ---
 
-function ClientsView({ initialAction, onActionComplete }: { initialAction?: string | null, onActionComplete?: () => void }) {
+function ClientsView({ initialAction, onActionComplete, showToast }: { initialAction?: string | null, onActionComplete?: () => void, showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -417,10 +487,13 @@ function ClientsView({ initialAction, onActionComplete }: { initialAction?: stri
     });
     
     if (res.ok) {
+      showToast(editingId ? "Cliente atualizado!" : "Cliente cadastrado!");
       setFormData({ name: '', document: '', phone: '', address: '' });
       setShowForm(false);
       setEditingId(null);
       fetchClients();
+    } else {
+      showToast("Erro ao salvar cliente.", "error");
     }
   };
 
@@ -441,8 +514,11 @@ function ClientsView({ initialAction, onActionComplete }: { initialAction?: stri
     if (confirm('Tem certeza que deseja excluir este cliente?')) {
       const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' });
       if (res.ok) {
+        showToast("Cliente removido.");
         fetchClients();
         setOpenMenuId(null);
+      } else {
+        showToast("Erro ao excluir cliente.", "error");
       }
     }
   };
@@ -582,7 +658,7 @@ function ClientsView({ initialAction, onActionComplete }: { initialAction?: stri
   );
 }
 
-function MaterialsView() {
+function MaterialsView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -614,10 +690,13 @@ function MaterialsView() {
     });
     
     if (res.ok) {
+      showToast(editingId ? "Material atualizado!" : "Material cadastrado!");
       setFormData({ name: '', price: '', quantity: '', description: '' });
       setShowForm(false);
       setEditingId(null);
       fetchMaterials();
+    } else {
+      showToast("Erro ao salvar material.", "error");
     }
   };
 
@@ -636,7 +715,12 @@ function MaterialsView() {
   const handleDelete = async (id: number) => {
     if (confirm('Deseja realmente excluir este material?')) {
       const res = await fetch(`/api/materials/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchMaterials();
+      if (res.ok) {
+        showToast("Material removido.");
+        fetchMaterials();
+      } else {
+        showToast("Erro ao excluir material.", "error");
+      }
     }
   };
 
@@ -652,9 +736,12 @@ function MaterialsView() {
     });
 
     if (res.ok) {
+      showToast(`Estoque atualizado: +${stockAmount} m²`);
       setStockEntryMaterial(null);
       setStockAmount('');
       fetchMaterials();
+    } else {
+      showToast("Erro ao atualizar estoque.", "error");
     }
   };
 
@@ -851,7 +938,7 @@ function MaterialsView() {
   );
 }
 
-function ServicesView() {
+function ServicesView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [services, setServices] = useState<Service[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -881,10 +968,13 @@ function ServicesView() {
     });
     
     if (res.ok) {
+      showToast(editingId ? "Serviço atualizado!" : "Serviço cadastrado!");
       setFormData({ name: '', price: '', description: '', minutes_per_meter: '' });
       setShowForm(false);
       setEditingId(null);
       fetchServices();
+    } else {
+      showToast("Erro ao salvar serviço.", "error");
     }
   };
 
@@ -903,7 +993,12 @@ function ServicesView() {
   const handleDelete = async (id: number) => {
     if (confirm('Deseja realmente excluir este serviço?')) {
       const res = await fetch(`/api/services/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchServices();
+      if (res.ok) {
+        showToast("Serviço removido.");
+        fetchServices();
+      } else {
+        showToast("Erro ao excluir serviço.", "error");
+      }
     }
   };
 
@@ -1027,7 +1122,7 @@ function ServicesView() {
   );
 }
 
-function QuotesView({ editId, onSave, onCancel }: { editId?: number | null, onSave: () => void, onCancel: () => void }) {
+function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number | null, onSave: () => void, onCancel: () => void, showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [servicesList, setServicesList] = useState<Service[]>([]);
@@ -1134,56 +1229,70 @@ function QuotesView({ editId, onSave, onCancel }: { editId?: number | null, onSa
 
   const handleSaveQuote = async () => {
     if (!selectedClientId || !projectName) {
-      alert("Selecione um cliente e dê um nome ao projeto.");
+      showToast("Selecione um cliente e dê um nome ao projeto.", "error");
       return;
     }
 
-    const items = quoteItems.map(item => ({
-      material_id: parseInt(item.materialId),
-      length: item.length,
-      width: item.width,
-      quantity: item.quantity,
-      subtotal_m2: item.length * item.width,
-      description: item.description
-    }));
+    try {
+      const items = quoteItems.map(item => ({
+        material_id: parseInt(item.materialId),
+        length: item.length,
+        width: item.width,
+        quantity: item.quantity,
+        subtotal_m2: item.length * item.width,
+        description: item.description
+      }));
 
-    const services = quoteServices.map(s => ({
-      service_id: parseInt(s.serviceId),
-      quantity: s.quantity,
-      unit_price: s.unitPrice,
-      description: s.description
-    }));
+      const services = quoteServices.map(s => ({
+        service_id: parseInt(s.serviceId),
+        quantity: s.quantity,
+        unit_price: s.unitPrice,
+        description: s.description
+      }));
 
-    const res = await fetch(editId ? `/api/quotes/${editId}` : '/api/quotes', {
-      method: editId ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: parseInt(selectedClientId),
-        project_name: projectName,
-        total_value: totalValue,
-        discount: 0,
-        items,
-        services
-      })
-    });
+      const res = await fetch(editId ? `/api/quotes/${editId}` : '/api/quotes', {
+        method: editId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: parseInt(selectedClientId),
+          project_name: projectName,
+          total_value: totalValue,
+          discount: 0,
+          items,
+          services
+        })
+      });
 
-    if (res.ok) {
-      alert(editId ? "Orçamento atualizado com sucesso!" : "Orçamento salvo com sucesso!");
-      setProjectName('');
-      setSelectedClientId('');
-      setQuoteItems([{ materialId: '', length: 0, width: 0, quantity: 1, description: '' }]);
-      setQuoteServices([]);
-      onSave();
+      if (res.ok) {
+        showToast(editId ? "Orçamento atualizado com sucesso!" : "Orçamento salvo com sucesso!");
+        setProjectName('');
+        setSelectedClientId('');
+        setQuoteItems([{ materialId: '', length: 0, width: 0, quantity: 1, description: '' }]);
+        setQuoteServices([]);
+        onSave();
+      } else {
+        const errorData = await res.json();
+        showToast(errorData.error || "Erro ao salvar orçamento.", "error");
+      }
+    } catch (error) {
+      console.error("Error saving quote:", error);
+      showToast("Erro de conexão ao salvar orçamento.", "error");
     }
   };
 
   const handleDeleteQuote = async () => {
     if (!editId) return;
     if (confirm('Deseja realmente excluir este orçamento?')) {
-      const res = await fetch(`/api/quotes/${editId}`, { method: 'DELETE' });
-      if (res.ok) {
-        alert("Orçamento excluído com sucesso!");
-        onCancel();
+      try {
+        const res = await fetch(`/api/quotes/${editId}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast("Orçamento excluído com sucesso!");
+          onCancel();
+        } else {
+          showToast("Erro ao excluir orçamento.", "error");
+        }
+      } catch (error) {
+        showToast("Erro de conexão ao excluir orçamento.", "error");
       }
     }
   };
@@ -1450,7 +1559,7 @@ function SummaryItem({ label, value }: any) {
   );
 }
 
-function HistoryView({ onEdit }: { onEdit: (id: number) => void }) {
+function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [quotes, setQuotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1484,18 +1593,36 @@ function HistoryView({ onEdit }: { onEdit: (id: number) => void }) {
 
   const handleDelete = async (id: number) => {
     if (confirm('Deseja realmente excluir este orçamento?')) {
-      const res = await fetch(`/api/quotes/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchQuotes();
+      try {
+        const res = await fetch(`/api/quotes/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast("Orçamento excluído.");
+          fetchQuotes();
+        } else {
+          showToast("Erro ao excluir orçamento.", "error");
+        }
+      } catch (error) {
+        showToast("Erro de conexão.", "error");
+      }
     }
   };
 
   const updateStatus = async (id: number, status: string) => {
-    const res = await fetch(`/api/quotes/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
-    if (res.ok) fetchQuotes();
+    try {
+      const res = await fetch(`/api/quotes/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        showToast(`Status atualizado para ${status}`);
+        fetchQuotes();
+      } else {
+        showToast("Erro ao atualizar status.", "error");
+      }
+    } catch (error) {
+      showToast("Erro de conexão.", "error");
+    }
   };
 
   return (
@@ -1644,7 +1771,7 @@ function HistoryView({ onEdit }: { onEdit: (id: number) => void }) {
   );
 }
 
-function SettingsView() {
+function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [templates, setTemplates] = useState<{id: number, text: string}[]>([]);
   const [newTemplate, setNewTemplate] = useState('');
 
@@ -1669,15 +1796,19 @@ function SettingsView() {
     if (res.ok) {
       setNewTemplate('');
       fetchTemplates();
+      showToast("Descrição adicionada com sucesso!");
     } else {
-      alert("Esta descrição já existe ou ocorreu um erro.");
+      showToast("Esta descrição já existe ou ocorreu um erro.", "error");
     }
   };
 
   const handleDeleteTemplate = async (id: number) => {
     if (confirm('Deseja excluir esta sugestão?')) {
       const res = await fetch(`/api/description-templates/${id}`, { method: 'DELETE' });
-      if (res.ok) fetchTemplates();
+      if (res.ok) {
+        fetchTemplates();
+        showToast("Descrição removida.");
+      }
     }
   };
 
@@ -1734,6 +1865,1096 @@ function SettingsView() {
           <p className="text-sm text-slate-500 italic">Em breve: Backup, Usuários e Logotipo.</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
+  const [sheetWidth, setSheetWidth] = useState<number>(3000); // 3000mm default
+  const [sheetHeight, setSheetHeight] = useState<number>(1800); // 1800mm default
+  const [sawThickness, setSawThickness] = useState<number>(5); // 5mm default
+  const [items, setItems] = useState<any[]>([]);
+  const [plan, setPlan] = useState<any[]>([]);
+  const [stockMaterials, setStockMaterials] = useState<Material[]>([]);
+  const [allowRotation, setAllowRotation] = useState<boolean>(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<string>('all');
+  const [availableMaterials, setAvailableMaterials] = useState<string[]>([]);
+  const [showManualAdd, setShowManualAdd] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [planName, setPlanName] = useState('');
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [manualItem, setManualItem] = useState({ 
+    description: '', 
+    width: '', 
+    length: '', 
+    quantity: '1',
+    material_name: '',
+    finishing: 'Polido',
+    edges: { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }
+  });
+  const [manualPositions, setManualPositions] = useState<Record<string, { x: number, y: number, rotated: boolean }>>({});
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [showOpenPlans, setShowOpenPlans] = useState(false);
+  const [savedPlans, setSavedPlans] = useState<any[]>([]);
+
+  const fetchSavedPlans = () => {
+    fetch('/api/cut-plans').then(r => r.json()).then(setSavedPlans);
+  };
+
+  const handleSavePlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!planName.trim()) return;
+
+    try {
+      const res = await fetch('/api/cut-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: planName,
+          items,
+          plan,
+          manual_positions: manualPositions,
+          sheet_width: sheetWidth,
+          sheet_height: sheetHeight,
+          saw_thickness: sawThickness
+        })
+      });
+
+      if (res.ok) {
+        showToast('Plano salvo com sucesso!');
+        setShowSaveModal(false);
+        setPlanName('');
+      } else {
+        showToast('Erro ao salvar plano.', 'error');
+      }
+    } catch (error) {
+      showToast('Erro de conexão ao salvar plano.', 'error');
+    }
+  };
+
+  const handleLoadPlan = async (id: number) => {
+    try {
+      const res = await fetch(`/api/cut-plans/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.items);
+        setPlan(data.plan);
+        setManualPositions(data.manual_positions);
+        setSheetWidth(data.sheet_width);
+        setSheetHeight(data.sheet_height);
+        setSawThickness(data.saw_thickness);
+        setShowOpenPlans(false);
+        showToast('Plano carregado com sucesso!');
+      } else {
+        showToast('Erro ao carregar plano.', 'error');
+      }
+    } catch (error) {
+      showToast('Erro de conexão ao carregar plano.', 'error');
+    }
+  };
+
+  const handleDeletePlan = async (id: number) => {
+    if (confirm('Deseja excluir este plano?')) {
+      try {
+        const res = await fetch(`/api/cut-plans/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast('Plano excluído.');
+          fetchSavedPlans();
+        } else {
+          showToast('Erro ao excluir plano.', 'error');
+        }
+      } catch (error) {
+        showToast('Erro de conexão ao excluir plano.', 'error');
+      }
+    }
+  };
+
+  const handleExportPDF = async () => {
+    const element = document.getElementById('sheet-container');
+    if (!element) return;
+    
+    const canvas = await html2canvas(element, {
+      backgroundColor: '#0f172a',
+      scale: 2,
+      useCORS: true
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`plano-de-corte-${Date.now()}.pdf`);
+  };
+
+  const updateCuts = () => {
+    setManualPositions({});
+    generatePlan();
+  };
+
+  const EDGE_TYPES = ['Nenhum', 'Reto', 'Reto duplo', 'Boleado', 'Meia esquadria'];
+  const FINISHING_TYPES = ['Polido', 'Levigado', 'Escovado', 'Bruto', 'Jateado'];
+
+  useEffect(() => {
+    fetch('/api/quotes').then(r => r.json()).then(setQuotes);
+    fetch('/api/materials').then(r => r.json()).then(setStockMaterials);
+  }, []);
+
+  const handleImport = async () => {
+    if (!selectedQuoteId) return;
+    try {
+      const res = await fetch(`/api/quotes/${selectedQuoteId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.items) {
+          // Extract unique materials
+          const materials = Array.from(new Set(data.items.map((item: any) => item.material_name))) as string[];
+          setAvailableMaterials(materials);
+          if (materials.length > 0) setSelectedMaterial(materials[0]);
+
+          // Flatten items based on quantity
+          const flattened: any[] = [];
+          data.items.forEach((item: any) => {
+            for (let i = 0; i < item.quantity; i++) {
+              flattened.push({
+                id: `${item.id}-${i}-${Math.random().toString(36).substr(2, 9)}`,
+                width: Math.round(item.width * 1000), // convert to mm
+                length: Math.round(item.length * 1000), // convert to mm
+                description: item.description,
+                material_name: item.material_name,
+                edges: { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }
+              });
+            }
+          });
+          setItems(flattened);
+          showToast(`${flattened.length} peças importadas.`);
+        }
+      } else {
+        showToast('Erro ao importar orçamento.', 'error');
+      }
+    } catch (error) {
+      showToast('Erro de conexão ao importar.', 'error');
+    }
+  };
+
+  const handleManualAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const qty = parseInt(manualItem.quantity) || 1;
+    const newItems = [];
+    for (let i = 0; i < qty; i++) {
+      newItems.push({
+        id: `manual-${Date.now()}-${i}`,
+        width: parseInt(manualItem.width),
+        length: parseInt(manualItem.length),
+        description: manualItem.description || 'Peça Manual',
+        material_name: manualItem.material_name || 'Manual',
+        finishing: manualItem.finishing,
+        edges: { ...manualItem.edges }
+      });
+    }
+    setItems([...items, ...newItems]);
+    setManualItem({ 
+      description: '', 
+      width: '', 
+      length: '', 
+      quantity: '1',
+      material_name: '',
+      finishing: 'Polido',
+      edges: { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }
+    });
+    setShowManualAdd(false);
+  };
+
+  const handleUpdateItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+
+    // Find original item to check if dimensions changed
+    const originalItem = items.find(it => it.id === editingItem.id);
+    const dimensionsChanged = originalItem && (originalItem.width !== editingItem.width || originalItem.length !== editingItem.length);
+
+    setItems(items.map(item => 
+      item.id === editingItem.id ? { ...editingItem } : item
+    ));
+    
+    // If dimensions changed, clear manual position to avoid invalid placement
+    if (dimensionsChanged) {
+      const newManualPositions = { ...manualPositions };
+      delete newManualPositions[editingItem.id];
+      setManualPositions(newManualPositions);
+    }
+
+    setEditingItem(null);
+    // Force plan regeneration
+    setTimeout(generatePlan, 0);
+  };
+
+  const toggleRotation = (id: string) => {
+    setItems(items.map(item => {
+      if (item.id === id) {
+        return { ...item, width: item.length, length: item.width };
+      }
+      return item;
+    }));
+    
+    // Clear manual position for this item to let it be re-packed
+    const newManualPositions = { ...manualPositions };
+    delete newManualPositions[id];
+    setManualPositions(newManualPositions);
+  };
+
+  const handleDragStart = (e: React.MouseEvent, id: string, x: number, y: number) => {
+    setDraggedItemId(id);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDragOffset({
+      x: (e.clientX - rect.left) * 5, // Scale back to mm
+      y: (e.clientY - rect.top) * 5
+    });
+  };
+
+  const handleDrag = (e: React.MouseEvent) => {
+    if (!draggedItemId) return;
+
+    const container = document.getElementById('sheet-container');
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const itemInPlan = plan.find(p => p.id === draggedItemId);
+    if (!itemInPlan) return;
+
+    // Calculate proposed position
+    let newX = (e.clientX - rect.left) * 5 - dragOffset.x;
+    let newY = (e.clientY - rect.top) * 5 - dragOffset.y;
+
+    // Bounds check
+    newX = Math.max(0, Math.min(sheetWidth - itemInPlan.width, newX));
+    newY = Math.max(0, Math.min(sheetHeight - itemInPlan.length, newY));
+
+    // Collision check
+    const hasCollision = plan.some(other => {
+      if (other.id === draggedItemId || other.sheetIndex !== itemInPlan.sheetIndex) return false;
+      return (
+        newX < other.x + other.width + sawThickness &&
+        newX + itemInPlan.width + sawThickness > other.x &&
+        newY < other.y + other.length + sawThickness &&
+        newY + itemInPlan.length + sawThickness > other.y
+      );
+    });
+
+    if (!hasCollision) {
+      setManualPositions({
+        ...manualPositions,
+        [draggedItemId]: { 
+          x: Math.round(newX), 
+          y: Math.round(newY), 
+          rotated: itemInPlan.rotated 
+        }
+      });
+
+      setPlan(plan.map(p => 
+        p.id === draggedItemId ? { ...p, x: Math.round(newX), y: Math.round(newY) } : p
+      ));
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemId(null);
+  };
+
+  const generatePlan = () => {
+    // Filter items by material if not 'all'
+    const filteredItems = selectedMaterial === 'all' 
+      ? items 
+      : items.filter(item => item.material_name === selectedMaterial || item.material_name === 'Manual');
+
+    if (filteredItems.length === 0) {
+      setPlan([]);
+      return;
+    }
+
+    // Separate items into manual and auto
+    const manualItems = filteredItems.filter(item => manualPositions[item.id]);
+    const autoItems = filteredItems.filter(item => !manualPositions[item.id]);
+
+    const currentPlan: any[] = [];
+    let currentSheetIndex = 0;
+
+    // Place manual items first (on first sheet)
+    manualItems.forEach(item => {
+      const pos = manualPositions[item.id];
+      currentPlan.push({
+        ...item,
+        x: pos.x,
+        y: pos.y,
+        rotated: pos.rotated,
+        width: pos.rotated ? item.length : item.width,
+        length: pos.rotated ? item.width : item.length,
+        sheetIndex: 0
+      });
+    });
+
+    // Simple Shelf Packing Algorithm for the rest
+    const sortedItems = [...autoItems].sort((a, b) => b.length - a.length);
+    
+    let currentX = 0;
+    let currentY = 0;
+    let shelfHeight = 0;
+
+    sortedItems.forEach(item => {
+      let w = item.width;
+      let l = item.length;
+      let rotated = false;
+
+      // Try to rotate if allowed
+      if (allowRotation) {
+        if (currentX + w > sheetWidth && currentX + l <= sheetWidth) {
+          [w, l] = [l, w];
+          rotated = true;
+        } 
+        else if (currentX + l <= sheetWidth && l < w) {
+          [w, l] = [l, w];
+          rotated = true;
+        }
+      }
+
+      // Check if item fits in current shelf
+      if (currentX + w > sheetWidth) {
+        currentX = 0;
+        currentY += shelfHeight + sawThickness;
+        shelfHeight = 0;
+      }
+
+      // Check if item fits in current sheet
+      if (currentY + l > sheetHeight) {
+        // Start new sheet
+        currentSheetIndex++;
+        currentX = 0;
+        currentY = 0;
+        shelfHeight = 0;
+        
+        // Re-check if it fits in the new empty sheet
+        if (currentX + w > sheetWidth) {
+           // Item too wide for sheet even when empty
+           return;
+        }
+      }
+
+      if (currentY + l <= sheetHeight) {
+        currentPlan.push({
+          ...item,
+          width: w,
+          length: l,
+          rotated,
+          x: currentX,
+          y: currentY,
+          sheetIndex: currentSheetIndex
+        });
+
+        currentX += w + sawThickness;
+        shelfHeight = Math.max(shelfHeight, l);
+      }
+    });
+
+    setPlan(currentPlan);
+  };
+
+  useEffect(() => {
+    generatePlan();
+  }, [items, sheetWidth, sheetHeight, sawThickness, allowRotation, selectedMaterial, manualPositions]);
+
+  const removeItem = (id: string) => {
+    setItems(items.filter(item => item.id !== id));
+  };
+
+  const clearItems = () => {
+    if (confirm('Deseja limpar todas as peças?')) {
+      setItems([]);
+      setPlan([]);
+      setAvailableMaterials([]);
+      setSelectedMaterial('all');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="space-y-0.5">
+          <h1 className="text-2xl font-black tracking-tight">Plano de Corte</h1>
+          <p className="text-slate-500 text-sm">Otimize o corte das chapas de pedra.</p>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button 
+            onClick={() => { fetchSavedPlans(); setShowOpenPlans(true); }}
+            className="flex-1 sm:flex-none bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-500 hover:text-white transition-all text-sm"
+          >
+            <FolderOpen size={16} /> Abrir
+          </button>
+          <button 
+            onClick={() => setShowManualAdd(true)}
+            className="flex-1 sm:flex-none bg-primary/10 border border-primary/20 text-primary px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-primary hover:text-white transition-all text-sm"
+          >
+            <Plus size={16} /> Peça Manual
+          </button>
+          <button 
+            onClick={clearItems}
+            className="flex-1 sm:flex-none bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all text-sm"
+          >
+            <X size={16} /> Limpar
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <div className="xl:col-span-1 space-y-4">
+          <div className="bg-secondary-dark p-4 rounded-xl border border-border-dark space-y-3">
+            <h3 className="text-sm font-bold flex items-center gap-2 text-primary"><Download size={16} /> Importar Orçamento</h3>
+            <div className="flex gap-2">
+              <select 
+                value={selectedQuoteId}
+                onChange={e => setSelectedQuoteId(e.target.value)}
+                className="flex-1 bg-background-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">Selecionar...</option>
+                {quotes.map(q => (
+                  <option key={q.id} value={q.id}>#{q.id} - {q.client_name}</option>
+                ))}
+              </select>
+              <button 
+                onClick={handleImport}
+                disabled={!selectedQuoteId}
+                className="bg-primary px-3 py-2 rounded-lg font-bold text-xs disabled:opacity-50"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-secondary-dark p-4 rounded-xl border border-border-dark space-y-3">
+            <h3 className="text-sm font-bold flex items-center gap-2 text-primary"><Settings size={16} /> Configurações</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (mm)</label>
+                <input 
+                  type="number"
+                  value={sheetWidth}
+                  onChange={e => setSheetWidth(parseInt(e.target.value) || 0)}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Altura (mm)</label>
+                <input 
+                  type="number"
+                  value={sheetHeight}
+                  onChange={e => setSheetHeight(parseInt(e.target.value) || 0)}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Serra (mm)</label>
+                <input 
+                  type="number"
+                  value={sawThickness}
+                  onChange={e => setSawThickness(parseInt(e.target.value) || 0)}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <div className="flex items-end pb-1.5">
+                <label className="flex items-center gap-2 text-[10px] font-medium text-slate-300 cursor-pointer">
+                  <input 
+                    type="checkbox"
+                    checked={allowRotation}
+                    onChange={e => setAllowRotation(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-border-dark bg-background-dark text-primary focus:ring-primary"
+                  />
+                  Rotação
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {availableMaterials.length > 0 && (
+            <div className="bg-secondary-dark p-4 rounded-xl border border-border-dark space-y-2">
+              <h3 className="text-sm font-bold flex items-center gap-2 text-primary"><Layers size={16} /> Filtrar Material</h3>
+              <select 
+                value={selectedMaterial}
+                onChange={e => setSelectedMaterial(e.target.value)}
+                className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="all">Todos</option>
+                {availableMaterials.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          )}
+          
+          {items.length > 0 && (
+            <div className="bg-secondary-dark p-4 rounded-xl border border-border-dark">
+              <h3 className="text-sm font-bold mb-3 flex justify-between items-center">
+                <span>Peças ({items.length})</span>
+              </h3>
+              
+              {/* Pieces per Material Summary */}
+              <div className="mb-4 space-y-1">
+                {Object.entries(items.reduce((acc: any, item) => {
+                  acc[item.material_name] = (acc[item.material_name] || 0) + 1;
+                  return acc;
+                }, {})).map(([mat, count]: [string, any]) => (
+                  <div key={mat} className="flex justify-between text-[9px] text-slate-400 border-b border-white/5 pb-1">
+                    <span>{mat}</span>
+                    <span className="font-bold text-primary">{count} un</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                {items.map((item) => (
+                  <div key={item.id} className="text-[10px] p-2 bg-white/5 rounded border border-white/5 flex justify-between items-center group hover:border-primary/30 transition-colors">
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-bold truncate">{item.description || 'Peça'}</span>
+                      <span className="text-[8px] text-slate-500 truncate">{item.material_name} • {item.finishing || 'Polido'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="font-mono text-slate-400">{item.width}x{item.length}</span>
+                      <button onClick={() => removeItem(item.id)} className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="xl:col-span-3 space-y-4">
+          <div className="bg-secondary-dark p-4 sm:p-6 rounded-xl border border-border-dark overflow-hidden relative min-h-[500px] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center gap-3">
+                <h3 className="text-sm font-bold flex items-center gap-2"><Scissors size={16} className="text-primary" /> Visualização</h3>
+                <button 
+                  onClick={updateCuts}
+                  className="p-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
+                  title="Atualizar Cortes"
+                >
+                  <RotateCw size={14} />
+                </button>
+              </div>
+              {plan.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-end">
+                  <div className="text-[10px] text-slate-500 bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                    Área Peças: <span className="text-primary font-bold">
+                      {(plan.reduce((acc, item) => acc + (item.width * item.length), 0) / 1000000).toFixed(2)} m²
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                    Sobra: <span className="text-orange-400 font-bold">
+                      {((sheetWidth * sheetHeight * (Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1) - plan.reduce((acc, item) => acc + (item.width * item.length), 0)) / 1000000).toFixed(2)} m²
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                    Cortes: <span className="text-blue-400 font-bold">
+                      {plan.length + (new Set(plan.map(p => `${p.sheetIndex}-${p.y}`)).size)}
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 bg-white/5 px-2 py-1 rounded-full border border-white/5">
+                    Aproveitamento: <span className="text-emerald-500 font-bold">
+                      {((plan.reduce((acc, item) => acc + (item.width * item.length), 0) / (sheetWidth * sheetHeight * (Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1))) * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {plan.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-3 py-12">
+                <Scissors size={32} className="opacity-20" />
+                <p className="text-sm">Importe um orçamento ou adicione peças manuais.</p>
+              </div>
+            ) : (
+              <div 
+                id="sheet-container"
+                className="relative flex-1 bg-background-dark border-2 border-dashed border-slate-700 rounded-lg overflow-auto p-4 flex flex-col items-center gap-8 cursor-crosshair select-none scrollbar-thin"
+                onMouseMove={handleDrag}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+              >
+                {Array.from({ length: Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1 }).map((_, sIdx) => (
+                  <div key={sIdx} className="relative flex flex-col items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chapa {sIdx + 1}</span>
+                    <div 
+                      className="relative bg-slate-800 border border-slate-600 shadow-2xl transition-all"
+                      style={{ 
+                        width: `${sheetWidth / 5}px`, 
+                        height: `${sheetHeight / 5}px`,
+                        minWidth: `${sheetWidth / 5}px`,
+                        minHeight: `${sheetHeight / 5}px`
+                      }}
+                    >
+                      {plan.filter(item => (item.sheetIndex || 0) === sIdx).map((item) => (
+                        <div 
+                          key={item.id}
+                          className={`absolute border flex flex-col items-center justify-center overflow-hidden group transition-all cursor-move ${draggedItemId === item.id ? 'z-50 ring-2 ring-primary shadow-2xl' : ''} ${item.material_name === 'Manual' ? 'bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/40' : 'bg-primary/20 border-primary/50 hover:bg-primary/40'}`}
+                          style={{
+                            left: `${item.x / 5}px`,
+                            top: `${item.y / 5}px`,
+                            width: `${item.width / 5}px`,
+                            height: `${item.length / 5}px`
+                          }}
+                          onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)}
+                          title={`${item.description} (${item.width}x${item.length}mm) - ${item.material_name} - ${item.finishing || 'Polido'}`}
+                        >
+                          <span className="text-[7px] font-bold text-white truncate w-full text-center px-1">{item.description}</span>
+                          <span className="text-[6px] text-slate-400">{item.width}x{item.length}</span>
+                          
+                          <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); toggleRotation(item.id); }}
+                              className="p-0.5 bg-black/50 rounded hover:bg-primary text-white"
+                            >
+                              <RotateCw size={8} />
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setEditingItem(item); }}
+                              className="p-0.5 bg-black/50 rounded hover:bg-primary text-white"
+                            >
+                              <Edit2 size={8} />
+                            </button>
+                          </div>
+
+                          {/* Edge Indicators - Dashed yellow lines inside */}
+                          {item.edges?.top !== 'Nenhum' && <div className="absolute top-1 left-1 right-1 h-0 border-t border-dashed border-yellow-500 z-10" />}
+                          {item.edges?.bottom !== 'Nenhum' && <div className="absolute bottom-1 left-1 right-1 h-0 border-b border-dashed border-yellow-500 z-10" />}
+                          {item.edges?.left !== 'Nenhum' && <div className="absolute top-1 bottom-1 left-1 w-0 border-l border-dashed border-yellow-500 z-10" />}
+                          {item.edges?.right !== 'Nenhum' && <div className="absolute top-1 bottom-1 right-1 w-0 border-r border-dashed border-yellow-500 z-10" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="text-[10px] text-slate-500 italic">
+                * Escala 1:5 | Dimensões em mm
+              </div>
+              {plan.length > 0 && (
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <button 
+                    onClick={() => setShowSaveModal(true)}
+                    className="flex-1 sm:flex-none bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-emerald-500 hover:text-white transition-all text-xs"
+                  >
+                    <Save size={14} /> Salvar
+                  </button>
+                  <button 
+                    onClick={handleExportPDF}
+                    className="flex-1 sm:flex-none bg-primary/10 border border-primary/20 text-primary px-4 py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-primary hover:text-white transition-all text-xs"
+                  >
+                    <Download size={14} /> Exportar PDF
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Save Plan Modal */}
+      <AnimatePresence>
+        {showSaveModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-secondary-dark border border-border-dark rounded-xl p-6 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-primary">Salvar Plano de Corte</h3>
+                <button onClick={() => setShowSaveModal(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSavePlan} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Plano</label>
+                  <input 
+                    autoFocus
+                    required
+                    value={planName}
+                    onChange={e => setPlanName(e.target.value)}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Ex: Cozinha Cliente X - Chapa 1"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setShowSaveModal(false)}
+                    className="flex-1 py-3 rounded-lg font-bold text-slate-400 hover:bg-white/5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-3 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+                  >
+                    Salvar Plano
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Open Plans Modal */}
+      <AnimatePresence>
+        {showOpenPlans && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-secondary-dark border border-border-dark rounded-xl p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-primary">Planos de Corte Salvos</h3>
+                <button onClick={() => setShowOpenPlans(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {savedPlans.map(p => (
+                  <div key={p.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group hover:border-primary/50 transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold">{p.name}</span>
+                      <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleLoadPlan(p.id)}
+                        className="bg-primary/10 text-primary px-3 py-1 rounded text-xs font-bold hover:bg-primary hover:text-white transition-all"
+                      >
+                        Abrir
+                      </button>
+                      <button 
+                        onClick={() => handleDeletePlan(p.id)}
+                        className="text-slate-500 hover:text-red-500 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {savedPlans.length === 0 && (
+                  <p className="text-center py-8 text-slate-500 text-sm italic">Nenhum plano salvo.</p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Manual Add Modal */}
+      <AnimatePresence>
+        {showManualAdd && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-secondary-dark border border-border-dark rounded-xl p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-primary">Nova Peça Manual</h3>
+                <button onClick={() => setShowManualAdd(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleManualAdd} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição</label>
+                    <input 
+                      required
+                      value={manualItem.description}
+                      onChange={e => setManualItem({...manualItem, description: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="Ex: Rodapé"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Material</label>
+                    <select 
+                      required
+                      value={manualItem.material_name}
+                      onChange={e => setManualItem({...manualItem, material_name: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Selecionar...</option>
+                      {stockMaterials.map(m => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                      <option value="Manual">Manual</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (mm)</label>
+                    <input 
+                      required
+                      type="number"
+                      value={manualItem.width}
+                      onChange={e => setManualItem({...manualItem, width: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Compr. (mm)</label>
+                    <input 
+                      required
+                      type="number"
+                      value={manualItem.length}
+                      onChange={e => setManualItem({...manualItem, length: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Qtd</label>
+                    <input 
+                      required
+                      type="number"
+                      value={manualItem.quantity}
+                      onChange={e => setManualItem({...manualItem, quantity: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Acabamento</label>
+                  <select 
+                    required
+                    value={manualItem.finishing}
+                    onChange={e => setManualItem({...manualItem, finishing: e.target.value})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {FINISHING_TYPES.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Bordas</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {['top', 'bottom', 'left', 'right'].map((side) => (
+                      <div key={side} className="bg-background-dark p-2 rounded border border-border-dark space-y-1">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox"
+                            checked={manualItem.edges[side as keyof typeof manualItem.edges] !== 'Nenhum'}
+                            onChange={(e) => {
+                              const newEdges = { ...manualItem.edges };
+                              newEdges[side as keyof typeof manualItem.edges] = e.target.checked ? 'Reto' : 'Nenhum';
+                              setManualItem({ ...manualItem, edges: newEdges });
+                            }}
+                            className="w-3 h-3 rounded border-border-dark bg-background-dark text-primary focus:ring-primary"
+                          />
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">{side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}</span>
+                        </div>
+                        {manualItem.edges[side as keyof typeof manualItem.edges] !== 'Nenhum' && (
+                          <select 
+                            value={manualItem.edges[side as keyof typeof manualItem.edges]}
+                            onChange={(e) => {
+                              const newEdges = { ...manualItem.edges };
+                              newEdges[side as keyof typeof manualItem.edges] = e.target.value;
+                              setManualItem({ ...manualItem, edges: newEdges });
+                            }}
+                            className="w-full bg-transparent text-[9px] outline-none text-primary border-t border-white/5 pt-1"
+                          >
+                            {EDGE_TYPES.filter(t => t !== 'Nenhum').map(type => (
+                              <option key={type} value={type} className="bg-secondary-dark">{type}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setShowManualAdd(false)}
+                    className="flex-1 py-2 rounded-lg font-bold text-xs text-slate-400 hover:bg-white/5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-2 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity text-xs"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Item Modal */}
+      <AnimatePresence>
+        {editingItem && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-secondary-dark border border-border-dark rounded-xl p-5 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-primary">Editar Peça</h3>
+                <button onClick={() => setEditingItem(null)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateItem} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição</label>
+                    <input 
+                      required
+                      value={editingItem.description}
+                      onChange={e => setEditingItem({...editingItem, description: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Material</label>
+                    <select 
+                      required
+                      value={editingItem.material_name}
+                      onChange={e => setEditingItem({...editingItem, material_name: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Selecionar...</option>
+                      {stockMaterials.map(m => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                      <option value="Manual">Manual</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (mm)</label>
+                    <input 
+                      required
+                      type="number"
+                      value={editingItem.width}
+                      onChange={e => setEditingItem({...editingItem, width: parseInt(e.target.value) || 0})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Comprimento (mm)</label>
+                    <input 
+                      required
+                      type="number"
+                      value={editingItem.length}
+                      onChange={e => setEditingItem({...editingItem, length: parseInt(e.target.value) || 0})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Acabamento</label>
+                  <select 
+                    required
+                    value={editingItem.finishing || 'Polido'}
+                    onChange={e => setEditingItem({...editingItem, finishing: e.target.value})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    {FINISHING_TYPES.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Bordas</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {['top', 'bottom', 'left', 'right'].map((side) => (
+                      <div key={side} className="bg-background-dark p-2 rounded border border-border-dark space-y-1">
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="checkbox"
+                            checked={editingItem.edges[side as keyof typeof editingItem.edges] !== 'Nenhum'}
+                            onChange={(e) => {
+                              const newEdges = { ...editingItem.edges };
+                              newEdges[side as keyof typeof editingItem.edges] = e.target.checked ? 'Reto' : 'Nenhum';
+                              setEditingItem({ ...editingItem, edges: newEdges });
+                            }}
+                            className="w-3 h-3 rounded border-border-dark bg-background-dark text-primary focus:ring-primary"
+                          />
+                          <span className="text-[9px] font-bold text-slate-400 uppercase">{side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}</span>
+                        </div>
+                        {editingItem.edges[side as keyof typeof editingItem.edges] !== 'Nenhum' && (
+                          <select 
+                            value={editingItem.edges[side as keyof typeof editingItem.edges]}
+                            onChange={(e) => {
+                              const newEdges = { ...editingItem.edges };
+                              newEdges[side as keyof typeof editingItem.edges] = e.target.value;
+                              setEditingItem({ ...editingItem, edges: newEdges });
+                            }}
+                            className="w-full bg-transparent text-[9px] outline-none text-primary border-t border-white/5 pt-1"
+                          >
+                            {EDGE_TYPES.filter(t => t !== 'Nenhum').map(type => (
+                              <option key={type} value={type} className="bg-secondary-dark">{type}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setEditingItem(null)}
+                    className="flex-1 py-2 rounded-lg font-bold text-xs text-slate-400 hover:bg-white/5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-2 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity text-xs"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
