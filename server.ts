@@ -76,6 +76,13 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL UNIQUE
   );
+
+  CREATE TABLE IF NOT EXISTS supplies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    price_per_meter REAL NOT NULL,
+    minutes_per_meter REAL NOT NULL
+  );
 `);
 
   // Seed initial data if empty
@@ -120,6 +127,12 @@ db.exec(`
     edges.forEach(e => {
       db.prepare("INSERT INTO services (name, price, description, category) VALUES (?, ?, ?, ?)").run(e, 0, `Borda ${e}`, 'edge');
     });
+
+    // Seed default supplies
+    db.prepare("INSERT INTO supplies (name, price_per_meter, minutes_per_meter) VALUES (?, ?, ?)").run("Cola Cuba", 15, 5);
+    db.prepare("INSERT INTO supplies (name, price_per_meter, minutes_per_meter) VALUES (?, ?, ?)").run("Lixa Diamantada", 5, 2);
+    db.prepare("INSERT INTO supplies (name, price_per_meter, minutes_per_meter) VALUES (?, ?, ?)").run("Água / Energia", 2, 0);
+
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Bancada Pia");
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Rodapé");
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Soleira");
@@ -128,11 +141,11 @@ db.exec(`
 
     // Seed default module templates
     const areaSecaParts = [
-      { id: '1', name: 'Tampo', widthFormula: 'L', lengthFormula: 'P', quantity: 1 },
-      { id: '2', name: 'Rodabanca Traseiro', widthFormula: 'L', lengthFormula: '100', quantity: 1 },
-      { id: '3', name: 'Rodabanca Lateral', widthFormula: 'P - 20', lengthFormula: '100', quantity: 2 },
-      { id: '4', name: 'Saia Frontal', widthFormula: 'L', lengthFormula: '40', quantity: 1 },
-      { id: '5', name: 'Saia Lateral', widthFormula: 'P - 20', lengthFormula: '40', quantity: 2 }
+      { id: '1', name: 'Tampo', widthFormula: 'L', lengthFormula: 'P', quantity: 1, edges: { top: 'Reto', bottom: 'Nenhum', left: 'Reto', right: 'Reto' }, supplies: [{ supply_id: 2, dimension: 'width' }, { supply_id: 3, dimension: 'width' }] },
+      { id: '2', name: 'Rodabanca Traseiro', widthFormula: 'L', lengthFormula: '100', quantity: 1, edges: { top: 'Reto', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] },
+      { id: '3', name: 'Rodabanca Lateral', widthFormula: 'P - 20', lengthFormula: '100', quantity: 2, edges: { top: 'Reto', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] },
+      { id: '4', name: 'Saia Frontal', widthFormula: 'L', lengthFormula: '40', quantity: 1, edges: { top: 'Nenhum', bottom: 'Reto', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] },
+      { id: '5', name: 'Saia Lateral', widthFormula: 'P - 20', lengthFormula: '40', quantity: 2, edges: { top: 'Nenhum', bottom: 'Reto', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] }
     ];
     db.prepare("INSERT INTO module_templates (name, description, parts) VALUES (?, ?, ?)").run(
       "Área Seca Padrão", 
@@ -141,11 +154,11 @@ db.exec(`
     );
 
     const piaParts = [
-      { id: '1', name: 'Tampo Principal', widthFormula: 'L', lengthFormula: 'P', quantity: 1 },
-      { id: '2', name: 'Rodabanca Traseiro', widthFormula: 'L', lengthFormula: '100', quantity: 1 },
-      { id: '3', name: 'Rodabanca Lateral', widthFormula: 'P - 20', lengthFormula: '100', quantity: 2 },
-      { id: '4', name: 'Saia Frontal', widthFormula: 'L', lengthFormula: '40', quantity: 1 },
-      { id: '5', name: 'Reforço Cuba', widthFormula: '400', lengthFormula: '50', quantity: 2 }
+      { id: '1', name: 'Tampo Principal', widthFormula: 'L', lengthFormula: 'P', quantity: 1, edges: { top: 'Reto', bottom: 'Nenhum', left: 'Reto', right: 'Reto' }, supplies: [{ supply_id: 2, dimension: 'width' }, { supply_id: 3, dimension: 'width' }] },
+      { id: '2', name: 'Rodabanca Traseiro', widthFormula: 'L', lengthFormula: '100', quantity: 1, edges: { top: 'Reto', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] },
+      { id: '3', name: 'Rodabanca Lateral', widthFormula: 'P - 20', lengthFormula: '100', quantity: 2, edges: { top: 'Reto', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] },
+      { id: '4', name: 'Saia Frontal', widthFormula: 'L', lengthFormula: '40', quantity: 1, edges: { top: 'Nenhum', bottom: 'Reto', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] },
+      { id: '5', name: 'Reforço Cuba', widthFormula: '400', lengthFormula: '50', quantity: 2, edges: { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }, supplies: [{ supply_id: 1, dimension: 'width' }] }
     ];
     db.prepare("INSERT INTO module_templates (name, description, parts) VALUES (?, ?, ?)").run(
       "Bancada de Pia", 
@@ -463,6 +476,31 @@ async function startServer() {
   app.delete("/api/module-templates/:id", (req, res) => {
     const { id } = req.params;
     db.prepare("DELETE FROM module_templates WHERE id = ?").run(id);
+    res.json({ success: true });
+  });
+
+  // Supplies API
+  app.get("/api/supplies", (req, res) => {
+    const supplies = db.prepare("SELECT * FROM supplies").all();
+    res.json(supplies);
+  });
+
+  app.post("/api/supplies", (req, res) => {
+    const { name, price_per_meter, minutes_per_meter } = req.body;
+    const result = db.prepare("INSERT INTO supplies (name, price_per_meter, minutes_per_meter) VALUES (?, ?, ?)").run(name, price_per_meter, minutes_per_meter);
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.put("/api/supplies/:id", (req, res) => {
+    const { id } = req.params;
+    const { name, price_per_meter, minutes_per_meter } = req.body;
+    db.prepare("UPDATE supplies SET name = ?, price_per_meter = ?, minutes_per_meter = ? WHERE id = ?").run(name, price_per_meter, minutes_per_meter, id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/supplies/:id", (req, res) => {
+    const { id } = req.params;
+    db.prepare("DELETE FROM supplies WHERE id = ?").run(id);
     res.json({ success: true });
   });
 

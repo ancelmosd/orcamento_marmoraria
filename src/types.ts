@@ -76,6 +76,18 @@ export interface ModulePartService {
   dimension: 'width' | 'length' | 'fixed';
 }
 
+export interface ModulePartSupply {
+  supply_id: number;
+  sides: ('top' | 'bottom' | 'left' | 'right')[];
+}
+
+export interface Supply {
+  id: number;
+  name: string;
+  price_per_meter: number;
+  minutes_per_meter: number;
+}
+
 export interface ModulePart {
   id: string;
   name: string;
@@ -90,6 +102,7 @@ export interface ModulePart {
     right: string;
   };
   services?: ModulePartService[];
+  supplies?: ModulePartSupply[];
 }
 
 export interface ModuleTemplate {

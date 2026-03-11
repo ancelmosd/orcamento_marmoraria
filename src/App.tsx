@@ -31,7 +31,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Client, Material, Quote, DashboardStats, Service, ModuleTemplate, ModulePart, ModulePartService } from './types';
+import { Client, Material, Quote, DashboardStats, Service, ModuleTemplate, ModulePart, ModulePartService, Supply, ModulePartSupply } from './types';
 
 // Mock data for initial render
 const MOCK_STATS: DashboardStats = {
@@ -139,15 +139,15 @@ export default function App() {
         <nav className="flex-1 px-4 space-y-2 mt-4">
           <NavItem icon={<LayoutDashboard />} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Users />} label="Clientes" active={activeTab === 'clients'} onClick={() => setActiveTab('clients')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Package />} label="Materiais" active={activeTab === 'materials'} onClick={() => setActiveTab('materials')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => setActiveTab('cut-plan')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Bolt />} label="Orçamento Rápido" active={activeTab === 'quick-quote'} onClick={() => setActiveTab('quick-quote')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Calculator />} label="Orçamentos" active={activeTab === 'quotes'} onClick={() => {
             setEditQuoteId(null);
             setActiveTab('quotes');
           }} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => setActiveTab('cut-plan')} collapsed={!isSidebarOpen} />
           <NavItem icon={<History />} label="Histórico" active={activeTab === 'history'} onClick={() => setActiveTab('history')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Package />} label="Materiais" active={activeTab === 'materials'} onClick={() => setActiveTab('materials')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={!isSidebarOpen} />
         </nav>
 
         <div className="p-4 border-t border-border-dark">
@@ -709,8 +709,8 @@ function MaterialsView({ showToast }: { showToast: (m: string, t?: 'success' | '
   const handleEdit = (m: Material) => {
     setFormData({
       name: m.name,
-      price: m.price.toString(),
-      quantity: m.quantity.toString(),
+      price: m.price?.toString() || '0',
+      quantity: m.quantity?.toString() || '0',
       description: m.description || ''
     });
     setEditingId(m.id);
@@ -987,7 +987,7 @@ function ServicesView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
   const handleEdit = (s: Service) => {
     setFormData({
       name: s.name,
-      price: s.price.toString(),
+      price: s.price?.toString() || '0',
       description: s.description || '',
       minutes_per_meter: (s.minutes_per_meter || 0).toString(),
       category: s.category || 'other'
@@ -1175,20 +1175,20 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
       fetch(`/api/quotes/${editId}`)
         .then(r => r.json())
         .then(data => {
-          setSelectedClientId(data.client_id.toString());
-          setProjectName(data.project_name);
+          setSelectedClientId(data.client_id ? data.client_id.toString() : '');
+          setProjectName(data.project_name || '');
           setQuoteItems(data.items.map((item: any) => ({
-            materialId: item.material_id.toString(),
-            length: item.length,
-            width: item.width,
-            quantity: item.quantity,
-            description: item.description
+            materialId: item.material_id ? item.material_id.toString() : '',
+            length: item.length || 0,
+            width: item.width || 0,
+            quantity: item.quantity || 1,
+            description: item.description || ''
           })));
           setQuoteServices(data.services.map((s: any) => ({
-            serviceId: s.service_id.toString(),
-            quantity: s.quantity,
-            unitPrice: s.unit_price,
-            description: s.description
+            serviceId: s.service_id ? s.service_id.toString() : '',
+            quantity: s.quantity || 0,
+            unitPrice: s.unit_price || 0,
+            description: s.description || ''
           })));
         });
     } else {
@@ -1219,8 +1219,8 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
     const updatedService = { ...newServices[index], [field]: value };
     
     // If serviceId changed, update unitPrice automatically
-    if (field === 'serviceId') {
-      const service = servicesList.find(s => s.id.toString() === value);
+    if (field === 'serviceId' && value) {
+      const service = servicesList.find(s => s.id?.toString() === value.toString());
       if (service) {
         updatedService.unitPrice = service.price;
       }
@@ -1231,7 +1231,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   };
 
   const calculateSubtotal = (item: any) => {
-    const material = materials.find(m => m.id.toString() === item.materialId);
+    const material = materials.find(m => m.id?.toString() === item.materialId?.toString());
     if (!material) return 0;
     // length and width are in mm, price is per m2
     return (item.length * item.width * item.quantity * material.price) / 1000000;
@@ -1246,7 +1246,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   const totalArea = quoteItems.reduce((acc, item) => acc + (item.length * item.width * item.quantity) / 1000000, 0);
   
   const totalMinutes = quoteServices.reduce((acc, item) => {
-    const service = servicesList.find(s => s.id.toString() === item.serviceId);
+    const service = servicesList.find(s => s.id?.toString() === item.serviceId?.toString());
     if (!service) return acc;
     // minutes_per_meter * quantity (which is meters)
     return acc + (item.quantity * (service.minutes_per_meter || 0));
@@ -1425,7 +1425,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Comp. (mm)</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase">Prof. (mm)</label>
                     <input 
                       type="number" step="1"
                       value={item.length}
@@ -1595,6 +1595,8 @@ function SummaryItem({ label, value }: any) {
 function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [quotes, setQuotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<any | null>(null);
+  const [quoteToDelete, setQuoteToDelete] = useState<number | null>(null);
 
   const fetchQuotes = async () => {
     setLoading(true);
@@ -1625,18 +1627,31 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Deseja realmente excluir este orçamento?')) {
-      try {
-        const res = await fetch(`/api/quotes/${id}`, { method: 'DELETE' });
-        if (res.ok) {
-          showToast("Orçamento excluído.");
-          fetchQuotes();
-        } else {
-          showToast("Erro ao excluir orçamento.", "error");
-        }
-      } catch (error) {
-        showToast("Erro de conexão.", "error");
+    try {
+      const res = await fetch(`/api/quotes/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast("Orçamento excluído.");
+        fetchQuotes();
+        setQuoteToDelete(null);
+      } else {
+        showToast("Erro ao excluir orçamento.", "error");
       }
+    } catch (error) {
+      showToast("Erro de conexão.", "error");
+    }
+  };
+
+  const fetchQuoteDetails = async (id: number) => {
+    try {
+      const res = await fetch(`/api/quotes/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedQuoteDetails(data);
+      } else {
+        showToast("Erro ao carregar detalhes.", "error");
+      }
+    } catch (error) {
+      showToast("Erro de conexão.", "error");
     }
   };
 
@@ -1705,7 +1720,19 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
                   <option value="Cancelado">Cancelado</option>
                 </select>
                 <button 
-                  onClick={() => handleDelete(quote.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetchQuoteDetails(quote.id);
+                  }}
+                  className="p-2 bg-white/5 text-slate-400 rounded-lg border border-border-dark"
+                >
+                  <Info size={16} />
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setQuoteToDelete(quote.id);
+                  }}
                   className="p-2 bg-red-500/10 text-red-400 rounded-lg border border-red-500/20"
                 >
                   <X size={16} />
@@ -1782,12 +1809,22 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
                       >
                         <Settings size={14} />
                       </button>
-                      <button className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-slate-400" title="Ver Detalhes">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fetchQuoteDetails(quote.id);
+                        }}
+                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-slate-400" 
+                        title="Ver Detalhes"
+                      >
                         <Info size={14} />
                       </button>
                       <button 
-                        onClick={() => handleDelete(quote.id)}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuoteToDelete(quote.id);
+                        }}
+                        className="p-1.5 bg-red-500/10 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400 border border-red-500/20" 
                         title="Excluir"
                       >
                         <X size={14} />
@@ -1800,6 +1837,157 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {quoteToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-secondary-dark border border-border-dark rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex items-center gap-4 text-red-400 mb-4">
+                <div className="bg-red-400/10 p-3 rounded-xl">
+                  <X size={24} />
+                </div>
+                <h3 className="text-xl font-bold">Excluir Orçamento?</h3>
+              </div>
+              <p className="text-slate-400 text-sm mb-6">
+                Esta ação não pode ser desfeita. O orçamento #{quoteToDelete} será removido permanentemente do histórico.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setQuoteToDelete(null)}
+                  className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => handleDelete(quoteToDelete)}
+                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-xl text-sm font-bold transition-colors"
+                >
+                  Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Details Modal */}
+      <AnimatePresence>
+        {selectedQuoteDetails && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="bg-secondary-dark border border-border-dark rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-border-dark flex justify-between items-center bg-white/5">
+                <div>
+                  <h3 className="text-xl font-bold">Detalhes do Orçamento #{selectedQuoteDetails.id}</h3>
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mt-1">
+                    {selectedQuoteDetails.client_name} • {selectedQuoteDetails.project_name}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSelectedQuoteDetails(null)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* Items Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Layers size={18} />
+                    <h4 className="font-bold uppercase text-xs tracking-widest">Peças e Materiais</h4>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {selectedQuoteDetails.items?.map((item: any) => (
+                      <div key={item.id} className="bg-background-dark/50 border border-border-dark rounded-xl p-4 flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-sm">{item.description || 'Peça sem descrição'}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-mono text-slate-500">
+                              {item.width} x {item.length} mm
+                            </span>
+                            <span className="text-slate-700">•</span>
+                            <span className="text-[10px] font-bold text-primary uppercase">
+                              Qtd: {item.quantity}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold text-slate-400">{(item.subtotal_m2 || 0).toFixed(3)} m²</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Services Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Construction size={18} />
+                    <h4 className="font-bold uppercase text-xs tracking-widest">Serviços e Acabamentos</h4>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {selectedQuoteDetails.services?.map((service: any) => (
+                      <div key={service.id} className="bg-background-dark/50 border border-border-dark rounded-xl p-4 flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-sm">{service.description || 'Serviço sem descrição'}</p>
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            Qtd: {service.quantity.toFixed(2)} • Un: R$ {service.unit_price.toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-primary">R$ {(service.quantity * service.unit_price).toLocaleString()}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Summary Section */}
+                <div className="pt-6 border-t border-border-dark flex justify-between items-end">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Data de Criação</p>
+                    <p className="text-sm font-bold">{new Date(selectedQuoteDetails.created_at).toLocaleString('pt-BR')}</p>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Valor Total</p>
+                    <p className="text-3xl font-black text-primary">R$ {selectedQuoteDetails.total_value.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
+                <button 
+                  onClick={() => {
+                    setSelectedQuoteDetails(null);
+                    onEdit(selectedQuoteDetails.id);
+                  }}
+                  className="flex-1 bg-primary text-white py-3 rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Settings size={18} /> Editar Orçamento
+                </button>
+                <button 
+                  onClick={() => setSelectedQuoteDetails(null)}
+                  className="px-8 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1809,10 +1997,13 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
   const [newTemplate, setNewTemplate] = useState('');
   const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [isSupplyModalOpen, setIsSupplyModalOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Partial<ModuleTemplate>>({ name: '', description: '', parts: [] });
   const [editingService, setEditingService] = useState<Partial<Service>>({ name: '', price: 0, description: '', category: 'other' });
+  const [editingSupply, setEditingSupply] = useState<Partial<Supply>>({ name: '', price_per_meter: 0, minutes_per_meter: 0 });
 
   const fetchTemplates = () => {
     fetch('/api/description-templates').then(r => r.json()).then(setTemplates);
@@ -1826,10 +2017,15 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
     fetch('/api/services').then(r => r.json()).then(setServices);
   };
 
+  const fetchSupplies = () => {
+    fetch('/api/supplies').then(r => r.json()).then(setSupplies);
+  };
+
   useEffect(() => {
     fetchTemplates();
     fetchModuleTemplates();
     fetchServices();
+    fetchSupplies();
   }, []);
 
   const handleAddTemplate = async (e: React.FormEvent) => {
@@ -1913,6 +2109,34 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
       if (res.ok) {
         fetchServices();
         showToast("Serviço removido.");
+      }
+    }
+  };
+
+  const handleSaveSupply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const method = editingSupply.id ? 'PUT' : 'POST';
+    const url = editingSupply.id ? `/api/supplies/${editingSupply.id}` : '/api/supplies';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingSupply)
+    });
+
+    if (res.ok) {
+      setIsSupplyModalOpen(false);
+      fetchSupplies();
+      showToast("Insumo salvo com sucesso!");
+    }
+  };
+
+  const handleDeleteSupply = async (id: number) => {
+    if (confirm('Deseja excluir este insumo?')) {
+      const res = await fetch(`/api/supplies/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchSupplies();
+        showToast("Insumo removido.");
       }
     }
   };
@@ -2074,7 +2298,133 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             ))}
           </div>
         </div>
+
+        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
+              <Package className="w-5 h-5" /> Insumos
+            </h3>
+            <button 
+              onClick={() => {
+                setEditingSupply({ name: '', price_per_meter: 0, minutes_per_meter: 0 });
+                setIsSupplyModalOpen(true);
+              }}
+              className="bg-primary/10 text-primary p-2 rounded-lg hover:bg-primary hover:text-white transition-all"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+          <p className="text-sm text-slate-400">
+            Gerencie insumos como cola, lixa, água, etc.
+          </p>
+
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+            {supplies.map(s => (
+              <div key={s.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold">{s.name}</span>
+                  <div className="flex gap-2 text-[10px] text-slate-500">
+                    <span>R$ {s.price_per_meter.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/m</span>
+                    <span>• {s.minutes_per_meter} min/m</span>
+                  </div>
+                </div>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    onClick={() => {
+                      setEditingSupply(s);
+                      setIsSupplyModalOpen(true);
+                    }}
+                    className="text-slate-500 hover:text-primary"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteSupply(s.id)}
+                    className="text-slate-500 hover:text-red-500"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {supplies.length === 0 && (
+              <p className="text-center py-4 text-slate-500 text-sm italic">Nenhum insumo cadastrado.</p>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Supply Modal */}
+      <AnimatePresence>
+        {isSupplyModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-secondary-dark border border-border-dark rounded-xl p-6 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-primary">{editingSupply.id ? 'Editar Insumo' : 'Novo Insumo'}</h3>
+                <button onClick={() => setIsSupplyModalOpen(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveSupply} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Insumo</label>
+                  <input 
+                    required
+                    value={editingSupply.name}
+                    onChange={e => setEditingSupply({...editingSupply, name: e.target.value})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                    placeholder="Ex: Cola Cuba"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço por Metro (R$)</label>
+                    <input 
+                      required
+                      type="number"
+                      step="0.01"
+                      value={editingSupply.price_per_meter}
+                      onChange={e => setEditingSupply({...editingSupply, price_per_meter: parseFloat(e.target.value)})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minutos por Metro</label>
+                    <input 
+                      required
+                      type="number"
+                      value={editingSupply.minutes_per_meter}
+                      onChange={e => setEditingSupply({...editingSupply, minutes_per_meter: parseFloat(e.target.value)})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => setIsSupplyModalOpen(false)}
+                    className="flex-1 py-2 rounded-lg font-bold text-slate-400 hover:bg-white/5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-2 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Module Modal */}
       <AnimatePresence>
@@ -2175,7 +2525,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                             />
                           </div>
                           <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Compr. (Fórmula)</label>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Profund. (Fórmula)</label>
                             <input 
                               required
                               value={part.lengthFormula}
@@ -2296,10 +2646,74 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                             {services.length === 0 && <p className="text-[9px] text-slate-600 italic">Nenhum serviço cadastrado.</p>}
                           </div>
                         </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Insumos da Peça</label>
+                          <div className="grid grid-cols-1 gap-3">
+                            {supplies.map(s => {
+                              const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
+                              const isSelected = !!supplyConfig;
+                              
+                              return (
+                                <div key={s.id} className="flex flex-col gap-2 p-2 bg-secondary-dark/50 rounded-lg border border-border-dark/50">
+                                  <div className="flex items-center justify-between">
+                                    <span className={`text-[10px] font-bold ${isSelected ? 'text-primary' : 'text-slate-400'}`}>{s.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newParts = [...(editingModule.parts || [])];
+                                        const partSupplies = newParts[index].supplies || [];
+                                        if (isSelected) {
+                                          newParts[index].supplies = partSupplies.filter(ps => ps.supply_id !== s.id);
+                                        } else {
+                                          newParts[index].supplies = [...partSupplies, { supply_id: s.id, sides: [] }];
+                                        }
+                                        setEditingModule({...editingModule, parts: newParts});
+                                      }}
+                                      className={`text-[9px] px-2 py-0.5 rounded border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-background-dark border-border-dark text-slate-500 hover:border-slate-400'}`}
+                                    >
+                                      {isSelected ? 'Remover' : 'Adicionar'}
+                                    </button>
+                                  </div>
+                                  
+                                  {isSelected && (
+                                    <div className="flex gap-1.5">
+                                      {['top', 'bottom', 'left', 'right'].map(side => (
+                                        <button
+                                          key={side}
+                                          type="button"
+                                          onClick={() => {
+                                            const newParts = [...(editingModule.parts || [])];
+                                            const partSupplies = [...(newParts[index].supplies || [])];
+                                            const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                            if (sIdx > -1) {
+                                              const currentSides = partSupplies[sIdx].sides || [];
+                                              if (currentSides.includes(side as any)) {
+                                                partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
+                                              } else {
+                                                partSupplies[sIdx].sides = [...currentSides, side as any];
+                                              }
+                                              newParts[index].supplies = partSupplies;
+                                              setEditingModule({...editingModule, parts: newParts});
+                                            }
+                                          }}
+                                          className={`text-[8px] px-2 py-1 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-500'}`}
+                                        >
+                                          {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {supplies.length === 0 && <p className="text-[9px] text-slate-600 italic">Nenhum insumo cadastrado.</p>}
+                          </div>
+                        </div>
                       </div>
                     ))}
                     {editingModule.parts?.length === 0 && (
-                      <p className="text-center py-4 text-slate-500 text-xs italic">Nenhuma peça configurada. Use L para Comprimento e P para Profundidade.</p>
+                      <p className="text-center py-4 text-slate-500 text-xs italic">Nenhuma peça configurada. Use L para Largura e P para Profundidade.</p>
                     )}
                   </div>
                 </div>
@@ -2434,6 +2848,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
   const [clients, setClients] = useState<Client[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
   const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
@@ -2448,7 +2863,8 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
     quantity: number, 
     finish: string, 
     edges: { top: string, bottom: string, left: string, right: string },
-    services?: ModulePartService[]
+    services?: ModulePartService[],
+    supplies?: ModulePartSupply[]
   }[]>([]);
   const [editingPartId, setEditingPartId] = useState<string | null>(null);
   const [addedModules, setAddedModules] = useState<{
@@ -2463,7 +2879,8 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
       quantity: number, 
       finish: string, 
       edges: { top: string, bottom: string, left: string, right: string },
-      services?: ModulePartService[]
+      services?: ModulePartService[],
+      supplies?: ModulePartSupply[]
     }[],
     dimensions: { L: number, P: number }
   }[]>([]);
@@ -2476,6 +2893,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
     fetch('/api/clients').then(r => r.json()).then(setClients);
     fetch('/api/materials').then(r => r.json()).then(setMaterials);
     fetch('/api/services').then(r => r.json()).then(setServices);
+    fetch('/api/supplies').then(r => r.json()).then(setSupplies);
     fetch('/api/module-templates').then(r => r.json()).then(setModuleTemplates);
   }, []);
 
@@ -2491,7 +2909,8 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
           quantity: part.quantity,
           finish: part.finish || 'Polido',
           edges: part.edges || { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' },
-          services: part.services
+          services: part.services,
+          supplies: part.supplies
         }));
         setCalculatedParts(parts);
       }
@@ -2600,9 +3019,10 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
           // 2. Automatic Edge Services
           if (part.edges) {
             Object.entries(part.edges).forEach(([side, type]) => {
-              if (type === 'Nenhum') return;
-              const edgeService = services.find(s => s.category === 'edge' && s.name === type);
-              if (edgeService && edgeService.price > 0) {
+              if (!type || type === 'Nenhum') return;
+              const edgeType = type as string;
+              const edgeService = services.find(s => s.category === 'edge' && s.name.trim().toLowerCase() === edgeType.trim().toLowerCase());
+              if (edgeService) {
                 // Determine length of this edge in meters
                 const edgeLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
                 const qty = (edgeLengthMm / 1000) * part.quantity;
@@ -2633,6 +3053,29 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                   description: `${mod.projectName} - ${part.name}: ${service.name} (Adicional)`,
                   quantity: qty,
                   unit_price: service.price
+                });
+              }
+            });
+          }
+
+          // 4. Supplies (Insumos)
+          if (part.supplies && part.supplies.length > 0) {
+            part.supplies.forEach(ps => {
+              const supply = supplies.find(s => s.id === ps.supply_id);
+              if (supply && ps.sides && ps.sides.length > 0) {
+                ps.sides.forEach(side => {
+                  // Determine length of this side in meters
+                  const sideLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
+                  const qty = (sideLengthMm / 1000) * part.quantity;
+                  const supplyValue = qty * supply.price_per_meter;
+                  totalValue += supplyValue;
+
+                  allServices.push({
+                    service_id: null,
+                    description: `${mod.projectName} - ${part.name}: Insumo ${supply.name} (${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'})`,
+                    quantity: qty,
+                    unit_price: supply.price_per_meter
+                  });
                 });
               }
             });
@@ -2736,7 +3179,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
             </h4>
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-3">
-                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Comprimento (L)</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Largura (L)</label>
                 <div className="bg-background-dark border border-border-dark rounded-2xl px-6 py-4 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
                   <input 
                     type="number"
@@ -2812,7 +3255,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                             </div>
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Comprimento (mm)</label>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Profundidade (mm)</label>
                             <div className="flex items-center gap-2 bg-background-dark border border-border-dark rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary">
                               <input 
                                 type="number"
@@ -2892,6 +3335,70 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[9px] font-bold text-slate-500 uppercase block">Insumos da Peça</label>
+                          <div className="grid grid-cols-1 gap-2">
+                            {supplies.map(s => {
+                              const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
+                              const isSelected = !!supplyConfig;
+                              
+                              return (
+                                <div key={s.id} className="flex flex-col gap-1.5 p-2 bg-background-dark/50 rounded-lg border border-border-dark/50">
+                                  <div className="flex items-center justify-between">
+                                    <span className={`text-[9px] font-bold ${isSelected ? 'text-primary' : 'text-slate-500'}`}>{s.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const newParts = [...calculatedParts];
+                                        const partSupplies = newParts[index].supplies || [];
+                                        if (isSelected) {
+                                          newParts[index].supplies = partSupplies.filter(ps => ps.supply_id !== s.id);
+                                        } else {
+                                          newParts[index].supplies = [...partSupplies, { supply_id: s.id, sides: [] }];
+                                        }
+                                        setCalculatedParts(newParts);
+                                        setHasManualEdits(true);
+                                      }}
+                                      className={`text-[8px] px-2 py-0.5 rounded border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-background-dark border-border-dark text-slate-600 hover:border-slate-400'}`}
+                                    >
+                                      {isSelected ? 'Remover' : 'Adicionar'}
+                                    </button>
+                                  </div>
+                                  
+                                  {isSelected && (
+                                    <div className="flex gap-1">
+                                      {['top', 'bottom', 'left', 'right'].map(side => (
+                                        <button
+                                          key={side}
+                                          type="button"
+                                          onClick={() => {
+                                            const newParts = [...calculatedParts];
+                                            const partSupplies = [...(newParts[index].supplies || [])];
+                                            const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                            if (sIdx > -1) {
+                                              const currentSides = partSupplies[sIdx].sides || [];
+                                              if (currentSides.includes(side as any)) {
+                                                partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
+                                              } else {
+                                                partSupplies[sIdx].sides = [...currentSides, side as any];
+                                              }
+                                              newParts[index].supplies = partSupplies;
+                                              setCalculatedParts(newParts);
+                                              setHasManualEdits(true);
+                                            }
+                                          }}
+                                          className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-600'}`}
+                                        >
+                                          {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
@@ -4112,7 +4619,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Comprimento (mm)</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Profundidade (mm)</label>
                     <input 
                       required
                       type="number"
