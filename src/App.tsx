@@ -9,6 +9,7 @@ import {
   Bell, 
   Plus, 
   Search, 
+  Check,
   MoreVertical, 
   Download,
   Bolt,
@@ -30,7 +31,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Client, Material, Quote, DashboardStats, Service } from './types';
+import { Client, Material, Quote, DashboardStats, Service, ModuleTemplate, ModulePart, ModulePartService } from './types';
 
 // Mock data for initial render
 const MOCK_STATS: DashboardStats = {
@@ -39,6 +40,9 @@ const MOCK_STATS: DashboardStats = {
   monthlyRevenue: 45200,
   inProduction: 15
 };
+
+const EDGE_TYPES = ['Nenhum', '45 Graus', 'Reto', 'Boleado', 'Meia Cana'];
+const FINISHING_TYPES = ['Polido', 'Levigado', 'Escovado', 'Bruto', 'Jateado'];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -100,6 +104,7 @@ export default function App() {
         />
       );
       case 'cut-plan': return <CutPlanView showToast={showToast} />;
+      case 'quick-quote': return <QuickQuoteView showToast={showToast} />;
       case 'services': return <ServicesView showToast={showToast} />;
       case 'history': return (
         <HistoryView 
@@ -137,6 +142,7 @@ export default function App() {
           <NavItem icon={<Package />} label="Materiais" active={activeTab === 'materials'} onClick={() => setActiveTab('materials')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => setActiveTab('cut-plan')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Bolt />} label="Orçamento Rápido" active={activeTab === 'quick-quote'} onClick={() => setActiveTab('quick-quote')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Calculator />} label="Orçamentos" active={activeTab === 'quotes'} onClick={() => {
             setEditQuoteId(null);
             setActiveTab('quotes');
@@ -942,7 +948,7 @@ function ServicesView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
   const [services, setServices] = useState<Service[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: '', price: '', description: '', minutes_per_meter: '' });
+  const [formData, setFormData] = useState({ name: '', price: '', description: '', minutes_per_meter: '', category: 'other' });
 
   const fetchServices = () => {
     fetch('/api/services').then(r => r.json()).then(setServices);
@@ -983,7 +989,8 @@ function ServicesView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
       name: s.name,
       price: s.price.toString(),
       description: s.description || '',
-      minutes_per_meter: (s.minutes_per_meter || 0).toString()
+      minutes_per_meter: (s.minutes_per_meter || 0).toString(),
+      category: s.category || 'other'
     });
     setEditingId(s.id);
     setShowForm(true);
@@ -1047,6 +1054,18 @@ function ServicesView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 />
               </div>
               <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
+                <select 
+                  value={formData.category}
+                  onChange={e => setFormData({...formData, category: e.target.value})}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="finish">Acabamento</option>
+                  <option value="edge">Borda</option>
+                  <option value="other">Outro</option>
+                </select>
+              </div>
+              <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Preço Base (R$)</label>
                 <input 
                   required
@@ -1088,33 +1107,45 @@ function ServicesView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {services.map(s => (
-          <div key={s.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group">
-            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button 
-                onClick={() => handleEdit(s)}
-                className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors"
-                title="Editar"
-              >
-                <Settings size={14} />
-              </button>
-              <button 
-                onClick={() => handleDelete(s.id)}
-                className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors"
-                title="Excluir"
-              >
-                <X size={14} />
-              </button>
+      <div className="grid grid-cols-1 gap-8">
+        {['finish', 'edge', 'other'].map(cat => (
+          <div key={cat} className="space-y-4">
+            <h3 className="text-lg font-bold text-primary uppercase tracking-wider border-b border-primary/20 pb-2">
+              {cat === 'finish' ? 'Acabamentos' : cat === 'edge' ? 'Bordas' : 'Outros Serviços'}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {services.filter(s => s.category === cat).map(s => (
+                <div key={s.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group">
+                  <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => handleEdit(s)}
+                      className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors"
+                      title="Editar"
+                    >
+                      <Settings size={14} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(s.id)}
+                      className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors"
+                      title="Excluir"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="flex justify-between items-start mb-4 pr-12">
+                    <h3 className="font-bold text-lg">{s.name}</h3>
+                    <div className="text-right">
+                      <p className="text-primary font-bold">R$ {s.price}</p>
+                      <p className="text-[10px] text-slate-500 uppercase font-bold">{s.minutes_per_meter || 0} min/m</p>
+                    </div>
+                  </div>
+                  <p className="text-slate-500 text-sm">{s.description}</p>
+                </div>
+              ))}
+              {services.filter(s => s.category === cat).length === 0 && (
+                <p className="text-slate-500 text-sm italic py-4">Nenhum serviço nesta categoria.</p>
+              )}
             </div>
-            <div className="flex justify-between items-start mb-4 pr-12">
-              <h3 className="font-bold text-lg">{s.name}</h3>
-              <div className="text-right">
-                <p className="text-primary font-bold">R$ {s.price}</p>
-                <p className="text-[10px] text-slate-500 uppercase font-bold">{s.minutes_per_meter || 0} min/m</p>
-              </div>
-            </div>
-            <p className="text-slate-500 text-sm">{s.description}</p>
           </div>
         ))}
       </div>
@@ -1202,7 +1233,8 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   const calculateSubtotal = (item: any) => {
     const material = materials.find(m => m.id.toString() === item.materialId);
     if (!material) return 0;
-    return item.length * item.width * item.quantity * material.price;
+    // length and width are in mm, price is per m2
+    return (item.length * item.width * item.quantity * material.price) / 1000000;
   };
 
   const calculateServiceSubtotal = (item: any) => {
@@ -1211,11 +1243,12 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
 
   const totalMaterials = quoteItems.reduce((acc, item) => acc + calculateSubtotal(item), 0);
   const totalServices = quoteServices.reduce((acc, item) => acc + calculateServiceSubtotal(item), 0);
-  const totalArea = quoteItems.reduce((acc, item) => acc + (item.length * item.width * item.quantity), 0);
+  const totalArea = quoteItems.reduce((acc, item) => acc + (item.length * item.width * item.quantity) / 1000000, 0);
   
   const totalMinutes = quoteServices.reduce((acc, item) => {
     const service = servicesList.find(s => s.id.toString() === item.serviceId);
     if (!service) return acc;
+    // minutes_per_meter * quantity (which is meters)
     return acc + (item.quantity * (service.minutes_per_meter || 0));
   }, 0);
 
@@ -1239,7 +1272,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
         length: item.length,
         width: item.width,
         quantity: item.quantity,
-        subtotal_m2: item.length * item.width,
+        subtotal_m2: (item.length * item.width * item.quantity) / 1000000,
         description: item.description
       }));
 
@@ -1392,18 +1425,18 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Comp. (m)</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase">Comp. (mm)</label>
                     <input 
-                      type="number" step="0.01"
+                      type="number" step="1"
                       value={item.length}
                       onChange={e => updateItem(index, 'length', parseFloat(e.target.value) || 0)}
                       className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Larg. (m)</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase">Larg. (mm)</label>
                     <input 
-                      type="number" step="0.01"
+                      type="number" step="1"
                       value={item.width}
                       onChange={e => updateItem(index, 'width', parseFloat(e.target.value) || 0)}
                       className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
@@ -1774,13 +1807,29 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
 function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [templates, setTemplates] = useState<{id: number, text: string}[]>([]);
   const [newTemplate, setNewTemplate] = useState('');
+  const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+  const [editingModule, setEditingModule] = useState<Partial<ModuleTemplate>>({ name: '', description: '', parts: [] });
+  const [editingService, setEditingService] = useState<Partial<Service>>({ name: '', price: 0, description: '', category: 'other' });
 
   const fetchTemplates = () => {
     fetch('/api/description-templates').then(r => r.json()).then(setTemplates);
   };
 
+  const fetchModuleTemplates = () => {
+    fetch('/api/module-templates').then(r => r.json()).then(setModuleTemplates);
+  };
+
+  const fetchServices = () => {
+    fetch('/api/services').then(r => r.json()).then(setServices);
+  };
+
   useEffect(() => {
     fetchTemplates();
+    fetchModuleTemplates();
+    fetchServices();
   }, []);
 
   const handleAddTemplate = async (e: React.FormEvent) => {
@@ -1812,6 +1861,62 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
     }
   };
 
+  const handleSaveModule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const method = editingModule.id ? 'PUT' : 'POST';
+    const url = editingModule.id ? `/api/module-templates/${editingModule.id}` : '/api/module-templates';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingModule)
+    });
+
+    if (res.ok) {
+      setIsModuleModalOpen(false);
+      fetchModuleTemplates();
+      showToast("Módulo salvo com sucesso!");
+    }
+  };
+
+  const handleDeleteModule = async (id: number) => {
+    if (confirm('Deseja excluir este módulo?')) {
+      const res = await fetch(`/api/module-templates/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchModuleTemplates();
+        showToast("Módulo removido.");
+      }
+    }
+  };
+
+  const handleSaveService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const method = editingService.id ? 'PUT' : 'POST';
+    const url = editingService.id ? `/api/services/${editingService.id}` : '/api/services';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingService)
+    });
+
+    if (res.ok) {
+      setIsServiceModalOpen(false);
+      fetchServices();
+      showToast("Serviço salvo com sucesso!");
+    }
+  };
+
+  const handleDeleteService = async (id: number) => {
+    if (confirm('Deseja excluir este serviço?')) {
+      const res = await fetch(`/api/services/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchServices();
+        showToast("Serviço removido.");
+      }
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="space-y-1">
@@ -1819,7 +1924,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
         <p className="text-slate-500">Gerencie as preferências e listas do sistema.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
           <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
             <Layers className="w-5 h-5" /> Sugestões de Descrição
@@ -1858,12 +1963,1083 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
           </div>
         </div>
 
-        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6 opacity-50 cursor-not-allowed">
-          <h3 className="text-xl font-bold flex items-center gap-2 text-slate-400">
-            <Bolt className="w-5 h-5" /> Outras Configurações
-          </h3>
-          <p className="text-sm text-slate-500 italic">Em breve: Backup, Usuários e Logotipo.</p>
+        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
+              <Bolt className="w-5 h-5" /> Módulos de Orçamento
+            </h3>
+            <button 
+              onClick={() => {
+                setEditingModule({ name: '', description: '', parts: [] });
+                setIsModuleModalOpen(true);
+              }}
+              className="bg-primary/10 text-primary p-2 rounded-lg hover:bg-primary hover:text-white transition-all"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+          <p className="text-sm text-slate-400">
+            Configure módulos com fórmulas automáticas para agilizar seus orçamentos.
+          </p>
+
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+            {moduleTemplates.map(m => (
+              <div key={m.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold">{m.name}</span>
+                  <span className="text-[10px] text-slate-500">{m.parts.length} peças configuradas</span>
+                </div>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                  <button 
+                    onClick={() => {
+                      setEditingModule(m);
+                      setIsModuleModalOpen(true);
+                    }}
+                    className="text-slate-500 hover:text-primary"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteModule(m.id)}
+                    className="text-slate-500 hover:text-red-500"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {moduleTemplates.length === 0 && (
+              <p className="text-center py-4 text-slate-500 text-sm italic">Nenhum módulo cadastrado.</p>
+            )}
+          </div>
         </div>
+
+        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
+              <Construction className="w-5 h-5" /> Serviços
+            </h3>
+            <button 
+              onClick={() => {
+                setEditingService({ name: '', price: 0, description: '', category: 'other' });
+                setIsServiceModalOpen(true);
+              }}
+              className="bg-primary/10 text-primary p-2 rounded-lg hover:bg-primary hover:text-white transition-all"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+          <p className="text-sm text-slate-400">
+            Cadastre os serviços de mão de obra e acabamentos especiais.
+          </p>
+
+          <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2">
+            {['finish', 'edge', 'other'].map(cat => (
+              <div key={cat} className="space-y-2">
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-white/5 pb-1">
+                  {cat === 'finish' ? 'Acabamentos' : cat === 'edge' ? 'Bordas' : 'Outros'}
+                </h4>
+                {services.filter(s => s.category === cat).map(s => (
+                  <div key={s.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold">{s.name}</span>
+                      <div className="flex gap-2 text-[10px] text-slate-500">
+                        <span>R$ {s.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/m</span>
+                        {s.minutes_per_meter > 0 && <span>• {s.minutes_per_meter} min/m</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setEditingService(s);
+                          setIsServiceModalOpen(true);
+                        }}
+                        className="text-slate-500 hover:text-primary"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteService(s.id)}
+                        className="text-slate-500 hover:text-red-500"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {services.filter(s => s.category === cat).length === 0 && (
+                  <p className="text-[10px] text-slate-600 italic py-1">Nenhum serviço nesta categoria.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Module Modal */}
+      <AnimatePresence>
+        {isModuleModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-secondary-dark border border-border-dark rounded-xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-primary">{editingModule.id ? 'Editar Módulo' : 'Novo Módulo'}</h3>
+                <button onClick={() => setIsModuleModalOpen(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveModule} className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Módulo</label>
+                    <input 
+                      required
+                      value={editingModule.name}
+                      onChange={e => setEditingModule({...editingModule, name: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                      placeholder="Ex: Área Seca"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
+                    <input 
+                      value={editingModule.description}
+                      onChange={e => setEditingModule({...editingModule, description: e.target.value})}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                      placeholder="Opcional..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Peças e Fórmulas</h4>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const newPart: ModulePart = { id: Math.random().toString(36).substr(2, 9), name: '', widthFormula: 'L', lengthFormula: 'P', quantity: 1 };
+                        setEditingModule({...editingModule, parts: [...(editingModule.parts || []), newPart]});
+                      }}
+                      className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-lg hover:bg-primary hover:text-white transition-all flex items-center gap-1"
+                    >
+                      <Plus size={14} /> Adicionar Peça
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {editingModule.parts?.map((part, index) => (
+                      <div key={part.id} className="p-4 bg-background-dark rounded-lg border border-border-dark space-y-3 relative group">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newParts = [...(editingModule.parts || [])];
+                            newParts.splice(index, 1);
+                            setEditingModule({...editingModule, parts: newParts});
+                          }}
+                          className="absolute top-2 right-2 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <X size={14} />
+                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                          <div className="sm:col-span-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Nome da Peça</label>
+                            <input 
+                              required
+                              value={part.name}
+                              onChange={e => {
+                                const newParts = [...(editingModule.parts || [])];
+                                newParts[index].name = e.target.value;
+                                setEditingModule({...editingModule, parts: newParts});
+                              }}
+                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
+                              placeholder="Ex: Tampo"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (Fórmula)</label>
+                            <input 
+                              required
+                              value={part.widthFormula}
+                              onChange={e => {
+                                const newParts = [...(editingModule.parts || [])];
+                                newParts[index].widthFormula = e.target.value;
+                                setEditingModule({...editingModule, parts: newParts});
+                              }}
+                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-mono"
+                              placeholder="Ex: L - 20"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Compr. (Fórmula)</label>
+                            <input 
+                              required
+                              value={part.lengthFormula}
+                              onChange={e => {
+                                const newParts = [...(editingModule.parts || [])];
+                                newParts[index].lengthFormula = e.target.value;
+                                setEditingModule({...editingModule, parts: newParts});
+                              }}
+                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-mono"
+                              placeholder="Ex: P"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Qtd</label>
+                            <input 
+                              required
+                              type="number"
+                              value={part.quantity}
+                              onChange={e => {
+                                const newParts = [...(editingModule.parts || [])];
+                                newParts[index].quantity = parseInt(e.target.value) || 1;
+                                setEditingModule({...editingModule, parts: newParts});
+                              }}
+                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Acabamento Padrão</label>
+                            <select 
+                              value={part.finish || 'Polido'}
+                              onChange={e => {
+                                const newParts = [...(editingModule.parts || [])];
+                                newParts[index].finish = e.target.value;
+                                setEditingModule({...editingModule, parts: newParts});
+                              }}
+                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              {services.filter(s => s.category === 'finish').length > 0 ? (
+                                services.filter(s => s.category === 'finish').map(s => (
+                                  <option key={s.id} value={s.name}>{s.name}</option>
+                                ))
+                              ) : (
+                                FINISHING_TYPES.map(type => (
+                                  <option key={type} value={type}>{type}</option>
+                                ))
+                              )}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase">Bordas Padrão</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {['top', 'bottom', 'left', 'right'].map((side) => (
+                                <div key={side} className="bg-secondary-dark p-1.5 rounded border border-border-dark space-y-0.5">
+                                  <span className="text-[8px] font-bold text-slate-500 uppercase block">
+                                    {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                  </span>
+                                  <select 
+                                    value={part.edges?.[side as keyof typeof part.edges] || 'Nenhum'}
+                                    onChange={(e) => {
+                                      const newParts = [...(editingModule.parts || [])];
+                                      if (!newParts[index].edges) {
+                                        newParts[index].edges = { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
+                                      }
+                                      newParts[index].edges = {
+                                        ...newParts[index].edges!,
+                                        [side]: e.target.value
+                                      };
+                                      setEditingModule({...editingModule, parts: newParts});
+                                    }}
+                                    className="w-full bg-transparent text-[9px] outline-none text-primary border-none p-0"
+                                  >
+                                    {services.filter(s => s.category === 'edge').length > 0 ? (
+                                      <>
+                                        <option value="Nenhum" className="bg-secondary-dark">Nenhum</option>
+                                        {services.filter(s => s.category === 'edge').map(s => (
+                                          <option key={s.id} value={s.name} className="bg-secondary-dark">{s.name}</option>
+                                        ))}
+                                      </>
+                                    ) : (
+                                      EDGE_TYPES.map(type => (
+                                        <option key={type} value={type} className="bg-secondary-dark">{type}</option>
+                                      ))
+                                    )}
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Serviços da Peça</label>
+                          <div className="flex flex-wrap gap-2">
+                            {services.map(s => {
+                              const isSelected = part.services?.some(ps => ps.service_id === s.id);
+                              return (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const newParts = [...(editingModule.parts || [])];
+                                    const partServices = newParts[index].services || [];
+                                    if (isSelected) {
+                                      newParts[index].services = partServices.filter(ps => ps.service_id !== s.id);
+                                    } else {
+                                      newParts[index].services = [...partServices, { service_id: s.id, dimension: 'width' }];
+                                    }
+                                    setEditingModule({...editingModule, parts: newParts});
+                                  }}
+                                  className={`text-[9px] px-2 py-1 rounded border transition-all ${isSelected ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary-dark border-border-dark text-slate-500 hover:border-slate-400'}`}
+                                >
+                                  {s.name}
+                                </button>
+                              );
+                            })}
+                            {services.length === 0 && <p className="text-[9px] text-slate-600 italic">Nenhum serviço cadastrado.</p>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {editingModule.parts?.length === 0 && (
+                      <p className="text-center py-4 text-slate-500 text-xs italic">Nenhuma peça configurada. Use L para Comprimento e P para Profundidade.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => setIsModuleModalOpen(false)}
+                    className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+                  >
+                    Salvar Módulo
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Service Modal */}
+      <AnimatePresence>
+        {isServiceModalOpen && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-secondary-dark border border-border-dark rounded-xl p-6 w-full max-w-md shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-primary">{editingService.id ? 'Editar Serviço' : 'Novo Serviço'}</h3>
+                <button onClick={() => setIsServiceModalOpen(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveService} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Serviço</label>
+                  <input 
+                    required
+                    value={editingService.name}
+                    onChange={e => setEditingService({...editingService, name: e.target.value})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                    placeholder="Ex: Acabamento 45 Graus"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Categoria</label>
+                  <select 
+                    value={editingService.category}
+                    onChange={e => setEditingService({...editingService, category: e.target.value as any})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                  >
+                    <option value="finish">Acabamento</option>
+                    <option value="edge">Borda</option>
+                    <option value="other">Outro</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço por Metro (R$/m)</label>
+                  <input 
+                    required
+                    type="number"
+                    step="0.01"
+                    value={editingService.price}
+                    onChange={e => setEditingService({...editingService, price: parseFloat(e.target.value) || 0})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minutos por Metro (min/m)</label>
+                  <input 
+                    type="number"
+                    value={editingService.minutes_per_meter || ''}
+                    onChange={e => setEditingService({...editingService, minutes_per_meter: parseFloat(e.target.value) || 0})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                    placeholder="Ex: 15"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
+                  <textarea 
+                    value={editingService.description}
+                    onChange={e => setEditingService({...editingService, description: e.target.value})}
+                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm h-24 resize-none"
+                    placeholder="Opcional..."
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    type="button"
+                    onClick={() => setIsServiceModalOpen(false)}
+                    className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+                  >
+                    Salvar Serviço
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function evaluateFormula(formula: string, L: number, P: number): number {
+  try {
+    const sanitized = formula.toUpperCase().replace(/L/g, L.toString()).replace(/P/g, P.toString());
+    // Basic math evaluation
+    return eval(sanitized);
+  } catch (e) {
+    return 0;
+  }
+}
+
+function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [clients, setClients] = useState<Client[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
+  const [projectName, setProjectName] = useState('');
+  const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
+  const [dimensions, setDimensions] = useState({ L: 800, P: 600 });
+  const [calculatedParts, setCalculatedParts] = useState<{
+    id: string, 
+    name: string, 
+    width: number, 
+    length: number, 
+    quantity: number, 
+    finish: string, 
+    edges: { top: string, bottom: string, left: string, right: string },
+    services?: ModulePartService[]
+  }[]>([]);
+  const [editingPartId, setEditingPartId] = useState<string | null>(null);
+  const [addedModules, setAddedModules] = useState<{
+    id: string,
+    templateName: string,
+    projectName: string,
+    parts: {
+      id: string, 
+      name: string, 
+      width: number, 
+      length: number, 
+      quantity: number, 
+      finish: string, 
+      edges: { top: string, bottom: string, left: string, right: string },
+      services?: ModulePartService[]
+    }[],
+    dimensions: { L: number, P: number }
+  }[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Track if the user has manually edited parts to avoid overwriting them on every render
+  const [hasManualEdits, setHasManualEdits] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/clients').then(r => r.json()).then(setClients);
+    fetch('/api/materials').then(r => r.json()).then(setMaterials);
+    fetch('/api/services').then(r => r.json()).then(setServices);
+    fetch('/api/module-templates').then(r => r.json()).then(setModuleTemplates);
+  }, []);
+
+  useEffect(() => {
+    if (selectedModuleId && !hasManualEdits) {
+      const template = moduleTemplates.find(t => t.id === selectedModuleId);
+      if (template) {
+        const parts = template.parts.map(part => ({
+          id: part.id || crypto.randomUUID(),
+          name: part.name,
+          width: evaluateFormula(part.widthFormula, dimensions.L, dimensions.P),
+          length: evaluateFormula(part.lengthFormula, dimensions.L, dimensions.P),
+          quantity: part.quantity,
+          finish: part.finish || 'Polido',
+          edges: part.edges || { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' },
+          services: part.services
+        }));
+        setCalculatedParts(parts);
+      }
+    } else if (!selectedModuleId) {
+      setCalculatedParts([]);
+      setHasManualEdits(false);
+    }
+  }, [selectedModuleId, dimensions.L, dimensions.P, moduleTemplates, hasManualEdits]);
+
+  // Reset manual edits when module changes
+  useEffect(() => {
+    setHasManualEdits(false);
+  }, [selectedModuleId]);
+
+  const handleAddModule = () => {
+    if (!selectedModuleId || !projectName) {
+      showToast("Selecione um módulo e dê um nome ao projeto/item.", "error");
+      return;
+    }
+    const template = moduleTemplates.find(t => t.id === selectedModuleId);
+    if (!template) return;
+
+    const newModule = {
+      id: crypto.randomUUID(),
+      templateName: template.name,
+      projectName: projectName,
+      parts: [...calculatedParts],
+      dimensions: { ...dimensions }
+    };
+
+    setAddedModules([...addedModules, newModule]);
+    setSelectedModuleId(null);
+    setProjectName('');
+    showToast("Módulo adicionado ao orçamento.");
+  };
+
+  const handleRemoveModule = (id: string) => {
+    setAddedModules(addedModules.filter(m => m.id !== id));
+  };
+
+  const handleGenerateQuote = async () => {
+    if (!selectedClientId || !selectedMaterialId || (addedModules.length === 0 && !selectedModuleId)) {
+      showToast("Preencha o cliente, material e adicione pelo menos um módulo.", "error");
+      return;
+    }
+
+    // If there's a module currently being configured but not added, add it or confirm?
+    // For simplicity, let's just use addedModules. If addedModules is empty but a module is selected, we can auto-add it.
+    let finalModules = [...addedModules];
+    if (finalModules.length === 0 && selectedModuleId) {
+      const template = moduleTemplates.find(t => t.id === selectedModuleId);
+      if (template) {
+        finalModules.push({
+          id: crypto.randomUUID(),
+          templateName: template.name,
+          projectName: projectName || template.name,
+          parts: [...calculatedParts],
+          dimensions: { ...dimensions }
+        });
+      }
+    }
+
+    setIsGenerating(true);
+    try {
+      const material = materials.find(m => m.id === selectedMaterialId);
+      if (!material) return;
+
+      let totalValue = 0;
+      const allItems: any[] = [];
+      const allServices: any[] = [];
+
+      finalModules.forEach(mod => {
+        mod.parts.forEach(part => {
+          const subtotal_m2 = (part.width * part.length * part.quantity) / 1000000;
+          const itemValue = subtotal_m2 * material.price;
+          totalValue += itemValue;
+
+          allItems.push({
+            material_id: selectedMaterialId,
+            description: `${mod.projectName} - ${part.name} (${part.finish} / ${
+              Object.entries(part.edges || {})
+                .filter(([_, type]) => type !== 'Nenhum')
+                .map(([side, type]) => `${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}: ${type}`)
+                .join(', ') || 'Sem Bordas'
+            })`,
+            width: part.width,
+            length: part.length,
+            quantity: part.quantity,
+            subtotal_m2
+          });
+
+          // 1. Automatic Finish Service
+          const finishService = services.find(s => s.category === 'finish' && s.name === part.finish);
+          if (finishService && finishService.price > 0) {
+            const qty = subtotal_m2; // Area in m2
+            const serviceValue = qty * finishService.price;
+            totalValue += serviceValue;
+            allServices.push({
+              service_id: finishService.id,
+              description: `${mod.projectName} - ${part.name}: Acabamento ${part.finish}`,
+              quantity: qty,
+              unit_price: finishService.price
+            });
+          }
+
+          // 2. Automatic Edge Services
+          if (part.edges) {
+            Object.entries(part.edges).forEach(([side, type]) => {
+              if (type === 'Nenhum') return;
+              const edgeService = services.find(s => s.category === 'edge' && s.name === type);
+              if (edgeService && edgeService.price > 0) {
+                // Determine length of this edge in meters
+                const edgeLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
+                const qty = (edgeLengthMm / 1000) * part.quantity;
+                const serviceValue = qty * edgeService.price;
+                totalValue += serviceValue;
+                allServices.push({
+                  service_id: edgeService.id,
+                  description: `${mod.projectName} - ${part.name}: Borda ${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'} (${type})`,
+                  quantity: qty,
+                  unit_price: edgeService.price
+                });
+              }
+            });
+          }
+
+          // 3. Additional Manual Services (from module template)
+          if (part.services && part.services.length > 0) {
+            part.services.forEach(ps => {
+              const service = services.find(s => s.id === ps.service_id);
+              if (service) {
+                // For manual services, we'll stick to the previous logic or use a fixed qty
+                const qty = (mod.dimensions.L / 1000) * part.quantity;
+                const serviceValue = qty * service.price;
+                totalValue += serviceValue;
+
+                allServices.push({
+                  service_id: service.id,
+                  description: `${mod.projectName} - ${part.name}: ${service.name} (Adicional)`,
+                  quantity: qty,
+                  unit_price: service.price
+                });
+              }
+            });
+          }
+        });
+      });
+
+      const quoteRes = await fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: selectedClientId,
+          project_name: projectName || (finalModules.length > 1 ? "Projeto Múltiplo" : finalModules[0].projectName),
+          total_value: totalValue,
+          discount: 0,
+          status: 'Pendente',
+          items: allItems,
+          services: allServices
+        })
+      });
+
+      if (quoteRes.ok) {
+        showToast("Orçamento gerado com sucesso!");
+        setProjectName('');
+        setSelectedModuleId(null);
+        setAddedModules([]);
+      } else {
+        showToast("Erro ao salvar orçamento.", "error");
+      }
+    } catch (error) {
+      showToast("Erro ao gerar orçamento.", "error");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-black tracking-tight">Quick-Quote</h1>
+        <p className="text-slate-500">Gere orçamentos complexos em segundos usando módulos pré-configurados.</p>
+      </div>
+
+      <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark shadow-2xl space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cliente</label>
+            <select 
+              value={selectedClientId || ''} 
+              onChange={e => setSelectedClientId(Number(e.target.value))}
+              className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            >
+              <option value="">Selecionar Cliente...</option>
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Projeto</label>
+            <input 
+              value={projectName}
+              onChange={e => setProjectName(e.target.value)}
+              className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+              placeholder="Ex: Cozinha Americana"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Material Padrão</label>
+            <select 
+              value={selectedMaterialId || ''} 
+              onChange={e => setSelectedMaterialId(Number(e.target.value))}
+              className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            >
+              <option value="">Selecionar Material...</option>
+              {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo</label>
+            <select 
+              value={selectedModuleId || ''} 
+              onChange={e => setSelectedModuleId(Number(e.target.value))}
+              className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+            >
+              <option value="">Selecionar Módulo...</option>
+              {moduleTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {selectedModuleId && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-6 bg-background-dark/30 rounded-2xl border border-border-dark space-y-8"
+          >
+            <h4 className="font-bold text-primary flex items-center gap-2">
+              <Bolt size={18} /> Dimensões do Módulo (mm)
+            </h4>
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Comprimento (L)</label>
+                <div className="bg-background-dark border border-border-dark rounded-2xl px-6 py-4 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                  <input 
+                    type="number"
+                    value={dimensions.L}
+                    onChange={e => setDimensions({...dimensions, L: Number(e.target.value)})}
+                    className="w-full bg-transparent border-none text-2xl font-black text-white outline-none"
+                  />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Profundidade (P)</label>
+                <div className="bg-background-dark border border-border-dark rounded-2xl px-6 py-4 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
+                  <input 
+                    type="number"
+                    value={dimensions.P}
+                    onChange={e => setDimensions({...dimensions, P: Number(e.target.value)})}
+                    className="w-full bg-transparent border-none text-2xl font-black text-white outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-4 border-t border-border-dark space-y-4">
+              <h5 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Peças Geradas (Clique para editar):</h5>
+              <div className="space-y-3">
+                {calculatedParts.map((part, index) => (
+                  <div 
+                    key={part.id} 
+                    className="bg-[#1a1f2e]/60 rounded-2xl border border-border-dark hover:border-primary/40 transition-all group overflow-hidden"
+                  >
+                    {editingPartId === part.id ? (
+                      <div className="p-4 bg-primary/5 space-y-4">
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <label className="text-[9px] font-bold text-primary uppercase mb-1 block">Nome da Peça</label>
+                            <input 
+                              autoFocus
+                              value={part.name}
+                              onChange={e => {
+                                const newParts = [...calculatedParts];
+                                newParts[index].name = e.target.value;
+                                setCalculatedParts(newParts);
+                                setHasManualEdits(true);
+                              }}
+                              className="bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-white outline-none w-full focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingPartId(null);
+                            }} 
+                            className="ml-4 p-2 bg-background-dark border border-border-dark text-slate-400 hover:text-white rounded-xl transition-colors"
+                          >
+                            <Check size={16} className="text-emerald-400" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Largura (mm)</label>
+                            <div className="flex items-center gap-2 bg-background-dark border border-border-dark rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary">
+                              <input 
+                                type="number"
+                                value={part.width}
+                                onChange={e => {
+                                  const newParts = [...calculatedParts];
+                                  newParts[index].width = Number(e.target.value);
+                                  setCalculatedParts(newParts);
+                                  setHasManualEdits(true);
+                                }}
+                                className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Comprimento (mm)</label>
+                            <div className="flex items-center gap-2 bg-background-dark border border-border-dark rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary">
+                              <input 
+                                type="number"
+                                value={part.length}
+                                onChange={e => {
+                                  const newParts = [...calculatedParts];
+                                  newParts[index].length = Number(e.target.value);
+                                  setCalculatedParts(newParts);
+                                  setHasManualEdits(true);
+                                }}
+                                className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Acabamento</label>
+                            <select 
+                              value={part.finish}
+                              onChange={e => {
+                                const newParts = [...calculatedParts];
+                                newParts[index].finish = e.target.value;
+                                setCalculatedParts(newParts);
+                                setHasManualEdits(true);
+                              }}
+                              className="w-full bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              {services.filter(s => s.category === 'finish').length > 0 ? (
+                                services.filter(s => s.category === 'finish').map(s => (
+                                  <option key={s.id} value={s.name}>{s.name}</option>
+                                ))
+                              ) : (
+                                FINISHING_TYPES.map(type => (
+                                  <option key={type} value={type}>{type}</option>
+                                ))
+                              )}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Bordas</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {['top', 'bottom', 'left', 'right'].map((side) => (
+                                <div key={side} className="bg-background-dark p-1.5 rounded border border-border-dark space-y-0.5">
+                                  <span className="text-[7px] font-bold text-slate-500 uppercase block">
+                                    {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                  </span>
+                                  <select 
+                                    value={part.edges?.[side as keyof typeof part.edges] || 'Nenhum'}
+                                    onChange={(e) => {
+                                      const newParts = [...calculatedParts];
+                                      if (!newParts[index].edges) {
+                                        newParts[index].edges = { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
+                                      }
+                                      newParts[index].edges = {
+                                        ...newParts[index].edges!,
+                                        [side]: e.target.value
+                                      };
+                                      setCalculatedParts(newParts);
+                                      setHasManualEdits(true);
+                                    }}
+                                    className="w-full bg-transparent text-[8px] outline-none text-primary border-none p-0"
+                                  >
+                                    {services.filter(s => s.category === 'edge').length > 0 ? (
+                                      <>
+                                        <option value="Nenhum" className="bg-secondary-dark">Nenhum</option>
+                                        {services.filter(s => s.category === 'edge').map(s => (
+                                          <option key={s.id} value={s.name} className="bg-secondary-dark">{s.name}</option>
+                                        ))}
+                                      </>
+                                    ) : (
+                                      EDGE_TYPES.map(type => (
+                                        <option key={type} value={type} className="bg-secondary-dark">{type}</option>
+                                      ))
+                                    )}
+                                  </select>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => setEditingPartId(part.id)}
+                        className="flex justify-between items-center cursor-pointer p-5 hover:bg-white/5 transition-colors"
+                      >
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-4">
+                            <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{part.name}</span>
+                            <span className="text-[10px] text-slate-400 font-black bg-slate-800/80 px-2.5 py-1 rounded-full uppercase tracking-tighter">x{part.quantity}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <span>{materials.find(m => m.id === selectedMaterialId)?.name || 'Material'}</span>
+                            <span className="text-slate-700">•</span>
+                            <span className="text-primary/70">{part.finish}</span>
+                            <span className="text-slate-700">•</span>
+                            <span className="text-primary/70">
+                              {Object.entries(part.edges || {})
+                                .filter(([_, type]) => type !== 'Nenhum')
+                                .map(([side, type]) => `${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}: ${type}`)
+                                .join(', ') || 'Sem Bordas'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6">
+                          <span className="text-sm font-mono text-primary/80 font-bold">
+                            {part.width} <span className="text-slate-600 mx-1">×</span> {part.length} <span className="text-slate-500 text-[10px] ml-1 uppercase">mm</span>
+                          </span>
+                          <Settings size={18} className="text-slate-700 group-hover:text-primary transition-all group-hover:rotate-90" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end pt-6">
+                <button 
+                  onClick={handleAddModule}
+                  className="bg-primary/10 border border-primary/30 text-primary px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-3 hover:bg-primary hover:text-white transition-all shadow-lg shadow-primary/5"
+                >
+                  <Plus size={20} /> Adicionar ao Orçamento
+                </button>
+              </div>
+
+              {selectedMaterialId && (
+                <div className="bg-primary/5 p-6 rounded-2xl border border-primary/20 flex justify-between items-center mt-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Valor Estimado (Deste Módulo)</p>
+                    <p className="text-3xl font-black text-primary">
+                      R$ {(() => {
+                        const material = materials.find(m => m.id === selectedMaterialId);
+                        if (!material) return "0,00";
+                        const totalM2 = calculatedParts.reduce((acc, part) => {
+                          return acc + (part.width * part.length * part.quantity) / 1000000;
+                        }, 0);
+                        return (totalM2 * material.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      })()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Área Total</p>
+                    <p className="text-xl font-black text-slate-300">
+                      {calculatedParts.reduce((acc, part) => {
+                        return acc + (part.width * part.length * part.quantity) / 1000000;
+                      }, 0).toFixed(2)} <span className="text-slate-500 text-sm">m²</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {addedModules.length > 0 && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Módulos Adicionados ({addedModules.length})</h4>
+            <div className="grid grid-cols-1 gap-3">
+              {addedModules.map(mod => (
+                <div key={mod.id} className="bg-background-dark/50 p-4 rounded-2xl border border-border-dark flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-bold text-white">{mod.projectName}</p>
+                    <p className="text-[10px] text-slate-500 uppercase font-bold">{mod.templateName} • {mod.parts.length} peças</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-primary">
+                        R$ {(() => {
+                          const material = materials.find(m => m.id === selectedMaterialId);
+                          if (!material) return "0,00";
+                          const m2 = mod.parts.reduce((acc, p) => acc + (p.width * p.length * p.quantity) / 1000000, 0);
+                          return (m2 * material.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        })()}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => handleRemoveModule(mod.id)}
+                      className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="bg-primary/10 p-6 rounded-2xl border border-primary/30 flex justify-between items-center">
+              <div>
+                <p className="text-xs font-bold text-primary uppercase">Total do Orçamento ({addedModules.length} módulos)</p>
+                <p className="text-3xl font-black text-primary">
+                  R$ {(() => {
+                    const material = materials.find(m => m.id === selectedMaterialId);
+                    if (!material) return "0,00";
+                    const totalM2 = addedModules.reduce((acc, mod) => {
+                      return acc + mod.parts.reduce((pAcc, p) => pAcc + (p.width * p.length * p.quantity) / 1000000, 0);
+                    }, 0);
+                    return (totalM2 * material.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  })()}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-slate-500 uppercase">Área Total Acumulada</p>
+                <p className="text-xl font-bold text-slate-300">
+                  {addedModules.reduce((acc, mod) => {
+                    return acc + mod.parts.reduce((pAcc, p) => pAcc + (p.width * p.length * p.quantity) / 1000000, 0);
+                  }, 0).toFixed(2)} m²
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <button 
+          onClick={handleGenerateQuote}
+          disabled={isGenerating}
+          className="w-full py-4 bg-primary text-white rounded-xl font-bold text-lg shadow-xl shadow-primary/20 hover:opacity-90 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+        >
+          {isGenerating ? (
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <>
+              <Calculator size={24} />
+              Gerar Orçamento Completo
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -1881,6 +3057,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
   const [allowRotation, setAllowRotation] = useState<boolean>(false);
   const [selectedMaterial, setSelectedMaterial] = useState<string>('all');
   const [availableMaterials, setAvailableMaterials] = useState<string[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [planName, setPlanName] = useState('');
@@ -1997,12 +3174,11 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     generatePlan();
   };
 
-  const EDGE_TYPES = ['Nenhum', 'Reto', 'Reto duplo', 'Boleado', 'Meia esquadria'];
-  const FINISHING_TYPES = ['Polido', 'Levigado', 'Escovado', 'Bruto', 'Jateado'];
-
   useEffect(() => {
     fetch('/api/quotes').then(r => r.json()).then(setQuotes);
     fetch('/api/materials').then(r => r.json()).then(setStockMaterials);
+    fetch('/api/services').then(r => r.json()).then(setServices);
+    fetchSavedPlans();
   }, []);
 
   const handleImport = async () => {
@@ -2020,14 +3196,37 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
           // Flatten items based on quantity
           const flattened: any[] = [];
           data.items.forEach((item: any) => {
+            // Parse edges and finishing from description
+            // Format: "Project - Part (Finishing / Topo: Type, Base: Type, Esq: Type, Dir: Type)"
+            const edges = { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
+            let finishing = 'Polido';
+
+            if (item.description && item.description.includes('(') && item.description.includes(')')) {
+              const contentMatch = item.description.match(/\(([^)]+)\)/);
+              if (contentMatch) {
+                const content = contentMatch[1];
+                const parts = content.split(' / ');
+                finishing = parts[0].trim();
+                
+                if (parts.length > 1) {
+                  const edgeString = parts[1];
+                  if (edgeString.includes('Topo: ')) edges.top = edgeString.split('Topo: ')[1].split(',')[0].trim();
+                  if (edgeString.includes('Base: ')) edges.bottom = edgeString.split('Base: ')[1].split(',')[0].trim();
+                  if (edgeString.includes('Esq: ')) edges.left = edgeString.split('Esq: ')[1].split(',')[0].trim();
+                  if (edgeString.includes('Dir: ')) edges.right = edgeString.split('Dir: ')[1].split(',')[0].trim();
+                }
+              }
+            }
+
             for (let i = 0; i < item.quantity; i++) {
               flattened.push({
                 id: `${item.id}-${i}-${Math.random().toString(36).substr(2, 9)}`,
-                width: Math.round(item.width * 1000), // convert to mm
-                length: Math.round(item.length * 1000), // convert to mm
+                width: Math.round(item.width), // already in mm
+                length: Math.round(item.length), // already in mm
                 description: item.description,
                 material_name: item.material_name,
-                edges: { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' }
+                finishing: finishing,
+                edges: edges
               });
             }
           });
@@ -2415,14 +3614,29 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 {items.map((item) => (
                   <div key={item.id} className="text-[10px] p-2 bg-white/5 rounded border border-white/5 flex justify-between items-center group hover:border-primary/30 transition-colors">
                     <div className="flex flex-col min-w-0">
-                      <span className="font-bold truncate">{item.description || 'Peça'}</span>
-                      <span className="text-[8px] text-slate-500 truncate">{item.material_name} • {item.finishing || 'Polido'}</span>
+                      <span className="font-bold">{item.description || 'Peça'}</span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-[8px] text-slate-500">{item.material_name} • {item.finishing || 'Polido'}</span>
+                        {item.edges && Object.values(item.edges).some(e => e !== 'Nenhum') && (
+                          <span className="text-[8px] text-primary font-medium">
+                            • {Object.entries(item.edges)
+                                .filter(([_, v]) => v !== 'Nenhum')
+                                .map(([k, v]) => `${k === 'top' ? 'Topo' : k === 'bottom' ? 'Base' : k === 'left' ? 'Esq' : 'Dir'}: ${v}`)
+                                .join(', ')}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="font-mono text-slate-400">{item.width}x{item.length}</span>
-                      <button onClick={() => removeItem(item.id)} className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
-                        <X size={12} />
-                      </button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button onClick={() => setEditingItem(item)} className="text-slate-500 hover:text-primary">
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={() => removeItem(item.id)} className="text-slate-500 hover:text-red-500">
+                          <X size={12} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -2764,9 +3978,15 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                     onChange={e => setManualItem({...manualItem, finishing: e.target.value})}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                   >
-                    {FINISHING_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
+                    {services.filter(s => s.category === 'finish').length > 0 ? (
+                      services.filter(s => s.category === 'finish').map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))
+                    ) : (
+                      FINISHING_TYPES.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -2798,9 +4018,15 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                             }}
                             className="w-full bg-transparent text-[9px] outline-none text-primary border-t border-white/5 pt-1"
                           >
-                            {EDGE_TYPES.filter(t => t !== 'Nenhum').map(type => (
-                              <option key={type} value={type} className="bg-secondary-dark">{type}</option>
-                            ))}
+                            {services.filter(s => s.category === 'edge').length > 0 ? (
+                              services.filter(s => s.category === 'edge').map(s => (
+                                <option key={s.id} value={s.name} className="bg-secondary-dark">{s.name}</option>
+                              ))
+                            ) : (
+                              EDGE_TYPES.filter(t => t !== 'Nenhum').map(type => (
+                                <option key={type} value={type} className="bg-secondary-dark">{type}</option>
+                              ))
+                            )}
                           </select>
                         )}
                       </div>
@@ -2905,9 +4131,15 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                     onChange={e => setEditingItem({...editingItem, finishing: e.target.value})}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                   >
-                    {FINISHING_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
+                    {services.filter(s => s.category === 'finish').length > 0 ? (
+                      services.filter(s => s.category === 'finish').map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))
+                    ) : (
+                      FINISHING_TYPES.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -2939,9 +4171,15 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                             }}
                             className="w-full bg-transparent text-[9px] outline-none text-primary border-t border-white/5 pt-1"
                           >
-                            {EDGE_TYPES.filter(t => t !== 'Nenhum').map(type => (
-                              <option key={type} value={type} className="bg-secondary-dark">{type}</option>
-                            ))}
+                            {services.filter(s => s.category === 'edge').length > 0 ? (
+                              services.filter(s => s.category === 'edge').map(s => (
+                                <option key={s.id} value={s.name} className="bg-secondary-dark">{s.name}</option>
+                              ))
+                            ) : (
+                              EDGE_TYPES.filter(t => t !== 'Nenhum').map(type => (
+                                <option key={type} value={type} className="bg-secondary-dark">{type}</option>
+                              ))
+                            )}
                           </select>
                         )}
                       </div>

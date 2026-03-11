@@ -21,6 +21,7 @@ export interface Service {
   price: number;
   description: string;
   minutes_per_meter?: number;
+  category: 'finish' | 'edge' | 'other';
 }
 
 export interface QuoteItem {
@@ -68,4 +69,32 @@ export interface DashboardStats {
 export interface DescriptionTemplate {
   id: number;
   text: string;
+}
+
+export interface ModulePartService {
+  service_id: number;
+  dimension: 'width' | 'length' | 'fixed';
+}
+
+export interface ModulePart {
+  id: string;
+  name: string;
+  widthFormula: string; // e.g., "L - 20"
+  lengthFormula: string; // e.g., "P"
+  quantity: number;
+  finish?: string;
+  edges?: {
+    top: string;
+    bottom: string;
+    left: string;
+    right: string;
+  };
+  services?: ModulePartService[];
+}
+
+export interface ModuleTemplate {
+  id: number;
+  name: string;
+  description: string;
+  parts: ModulePart[];
 }

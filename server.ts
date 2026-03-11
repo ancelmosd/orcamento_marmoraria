@@ -33,7 +33,8 @@ db.exec(`
     name TEXT NOT NULL,
     price REAL NOT NULL,
     description TEXT,
-    minutes_per_meter REAL DEFAULT 0
+    minutes_per_meter REAL DEFAULT 0,
+    category TEXT DEFAULT 'other'
   );
 
   CREATE TABLE IF NOT EXISTS quotes (
@@ -87,6 +88,9 @@ db.exec(`
   try {
     db.prepare("ALTER TABLE services ADD COLUMN minutes_per_meter REAL DEFAULT 0").run();
   } catch (e) {}
+  try {
+    db.prepare("ALTER TABLE services ADD COLUMN category TEXT DEFAULT 'other'").run();
+  } catch (e) {}
   const clientCount = db.prepare("SELECT COUNT(*) as count FROM clients").get() as { count: number };
   if (clientCount.count === 0) {
     db.prepare("INSERT INTO clients (name, document, phone, address) VALUES (?, ?, ?, ?)").run(
@@ -101,14 +105,53 @@ db.exec(`
     db.prepare("INSERT INTO materials (name, price, quantity, description) VALUES (?, ?, ?, ?)").run(
       "Granito São Gabriel", 420, 42.0, "Granito brasileiro de granulação fina"
     );
-    db.prepare("INSERT INTO services (name, price, description, minutes_per_meter) VALUES (?, ?, ?, ?)").run(
-      "Meia Esquadria 45°", 120, "Corte preciso em 45 graus", 15
+    db.prepare("INSERT INTO services (name, price, description, minutes_per_meter, category) VALUES (?, ?, ?, ?, ?)").run(
+      "Meia Esquadria 45°", 120, "Corte preciso em 45 graus", 15, "edge"
     );
+    
+    // Seed default finishes
+    const finishes = ['Polido', 'Levigado', 'Escovado', 'Bruto', 'Jateado'];
+    finishes.forEach(f => {
+      db.prepare("INSERT INTO services (name, price, description, category) VALUES (?, ?, ?, ?)").run(f, 0, `Acabamento ${f}`, 'finish');
+    });
+
+    // Seed default edges
+    const edges = ['45 Graus', 'Reto', 'Boleado', 'Meia Cana'];
+    edges.forEach(e => {
+      db.prepare("INSERT INTO services (name, price, description, category) VALUES (?, ?, ?, ?)").run(e, 0, `Borda ${e}`, 'edge');
+    });
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Bancada Pia");
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Rodapé");
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Soleira");
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Peitoril");
     db.prepare("INSERT INTO description_templates (text) VALUES (?)").run("Ilha");
+
+    // Seed default module templates
+    const areaSecaParts = [
+      { id: '1', name: 'Tampo', widthFormula: 'L', lengthFormula: 'P', quantity: 1 },
+      { id: '2', name: 'Rodabanca Traseiro', widthFormula: 'L', lengthFormula: '100', quantity: 1 },
+      { id: '3', name: 'Rodabanca Lateral', widthFormula: 'P - 20', lengthFormula: '100', quantity: 2 },
+      { id: '4', name: 'Saia Frontal', widthFormula: 'L', lengthFormula: '40', quantity: 1 },
+      { id: '5', name: 'Saia Lateral', widthFormula: 'P - 20', lengthFormula: '40', quantity: 2 }
+    ];
+    db.prepare("INSERT INTO module_templates (name, description, parts) VALUES (?, ?, ?)").run(
+      "Área Seca Padrão", 
+      "Módulo de área seca com rodabancas de 10cm e saias de 4cm", 
+      JSON.stringify(areaSecaParts)
+    );
+
+    const piaParts = [
+      { id: '1', name: 'Tampo Principal', widthFormula: 'L', lengthFormula: 'P', quantity: 1 },
+      { id: '2', name: 'Rodabanca Traseiro', widthFormula: 'L', lengthFormula: '100', quantity: 1 },
+      { id: '3', name: 'Rodabanca Lateral', widthFormula: 'P - 20', lengthFormula: '100', quantity: 2 },
+      { id: '4', name: 'Saia Frontal', widthFormula: 'L', lengthFormula: '40', quantity: 1 },
+      { id: '5', name: 'Reforço Cuba', widthFormula: '400', lengthFormula: '50', quantity: 2 }
+    ];
+    db.prepare("INSERT INTO module_templates (name, description, parts) VALUES (?, ?, ?)").run(
+      "Bancada de Pia", 
+      "Bancada para pia com reforços para cuba", 
+      JSON.stringify(piaParts)
+    );
   } else {
     // Ensure Ancelmo is there for the demo
     const ancelmo = db.prepare("SELECT * FROM clients WHERE name = ?").get("Ancelmo Siqueira Dias");
@@ -118,6 +161,16 @@ db.exec(`
       );
     }
   }
+
+  // Add module_templates table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS module_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      parts TEXT NOT NULL
+    );
+  `);
 
   // Add cut_plans table
   db.exec(`
@@ -216,15 +269,15 @@ async function startServer() {
   });
 
   app.post("/api/services", (req, res) => {
-    const { name, price, description, minutes_per_meter } = req.body;
-    const result = db.prepare("INSERT INTO services (name, price, description, minutes_per_meter) VALUES (?, ?, ?, ?)").run(name, price, description, minutes_per_meter || 0);
+    const { name, price, description, minutes_per_meter, category } = req.body;
+    const result = db.prepare("INSERT INTO services (name, price, description, minutes_per_meter, category) VALUES (?, ?, ?, ?, ?)").run(name, price, description, minutes_per_meter || 0, category || 'other');
     res.json({ id: result.lastInsertRowid });
   });
 
   app.put("/api/services/:id", (req, res) => {
     const { id } = req.params;
-    const { name, price, description, minutes_per_meter } = req.body;
-    db.prepare("UPDATE services SET name = ?, price = ?, description = ?, minutes_per_meter = ? WHERE id = ?").run(name, price, description, minutes_per_meter || 0, id);
+    const { name, price, description, minutes_per_meter, category } = req.body;
+    db.prepare("UPDATE services SET name = ?, price = ?, description = ?, minutes_per_meter = ?, category = ? WHERE id = ?").run(name, price, description, minutes_per_meter || 0, category || 'other', id);
     res.json({ success: true });
   });
 
@@ -385,6 +438,31 @@ async function startServer() {
   app.delete("/api/cut-plans/:id", (req, res) => {
     const { id } = req.params;
     db.prepare("DELETE FROM cut_plans WHERE id = ?").run(id);
+    res.json({ success: true });
+  });
+
+  // Module Templates API
+  app.get("/api/module-templates", (req, res) => {
+    const templates = db.prepare("SELECT * FROM module_templates").all();
+    res.json(templates.map((t: any) => ({ ...t, parts: JSON.parse(t.parts) })));
+  });
+
+  app.post("/api/module-templates", (req, res) => {
+    const { name, description, parts } = req.body;
+    const result = db.prepare("INSERT INTO module_templates (name, description, parts) VALUES (?, ?, ?)").run(name, description, JSON.stringify(parts));
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.put("/api/module-templates/:id", (req, res) => {
+    const { id } = req.params;
+    const { name, description, parts } = req.body;
+    db.prepare("UPDATE module_templates SET name = ?, description = ?, parts = ? WHERE id = ?").run(name, description, JSON.stringify(parts), id);
+    res.json({ success: true });
+  });
+
+  app.delete("/api/module-templates/:id", (req, res) => {
+    const { id } = req.params;
+    db.prepare("DELETE FROM module_templates WHERE id = ?").run(id);
     res.json({ success: true });
   });
 
