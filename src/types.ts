@@ -61,9 +61,13 @@ export interface Quote {
 
 export interface DashboardStats {
   pendingQuotes: number;
+  pendingQuotesTrend: number;
   totalClients: number;
+  totalClientsTrend: number;
   monthlyRevenue: number;
+  monthlyRevenueTrend: number;
   inProduction: number;
+  inProductionTrend: number;
 }
 
 export interface DescriptionTemplate {

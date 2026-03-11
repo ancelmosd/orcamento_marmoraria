@@ -36,9 +36,13 @@ import { Client, Material, Quote, DashboardStats, Service, ModuleTemplate, Modul
 // Mock data for initial render
 const MOCK_STATS: DashboardStats = {
   pendingQuotes: 24,
+  pendingQuotesTrend: 12,
   totalClients: 1280,
+  totalClientsTrend: 5,
   monthlyRevenue: 45200,
-  inProduction: 15
+  monthlyRevenueTrend: 8.5,
+  inProduction: 15,
+  inProductionTrend: -2
 };
 
 const EDGE_TYPES = ['Nenhum', '45 Graus', 'Reto', 'Boleado', 'Meia Cana'];
@@ -281,10 +285,10 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <StatCard label="Orçamentos Pendentes" value={stats.pendingQuotes} trend="+12%" icon={<History />} color="primary" />
-        <StatCard label="Total de Clientes" value={stats.totalClients} trend="Estável" icon={<Users />} color="blue" />
-        <StatCard label="Faturamento Mensal" value={`R$ ${stats.monthlyRevenue.toLocaleString()}`} trend="+5.4%" icon={<Calculator />} color="emerald" />
-        <StatCard label="Em Produção" value={stats.inProduction} trend="8 Urgentes" icon={<Construction />} color="yellow" />
+        <StatCard label="Orçamentos Pendentes" value={stats.pendingQuotes} trend={stats.pendingQuotesTrend} icon={<History />} color="primary" />
+        <StatCard label="Total de Clientes" value={stats.totalClients} trend={stats.totalClientsTrend} icon={<Users />} color="blue" />
+        <StatCard label="Faturamento Mensal" value={`R$ ${stats.monthlyRevenue.toLocaleString()}`} trend={stats.monthlyRevenueTrend} icon={<Calculator />} color="emerald" />
+        <StatCard label="Em Produção" value={stats.inProduction} trend={stats.inProductionTrend} icon={<Construction />} color="yellow" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -361,7 +365,7 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
   );
 }
 
-function StatCard({ label, value, trend, icon, color }: any) {
+function StatCard({ label, value, trend, icon, color }: { label: string, value: any, trend: number, icon: any, color: string }) {
   const colors: any = {
     primary: 'text-primary bg-primary/10',
     blue: 'text-blue-500 bg-blue-500/10',
@@ -369,15 +373,23 @@ function StatCard({ label, value, trend, icon, color }: any) {
     orange: 'text-orange-500 bg-orange-500/10',
     yellow: 'text-yellow-400 bg-yellow-400/10'
   };
+  
+  const isPositive = trend > 0;
+  const isNegative = trend < 0;
+  const trendText = trend === 0 ? 'Estável' : `${isPositive ? '+' : ''}${trend}%`;
+
   return (
     <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className={`p-2 rounded-lg ${colors[color]}`}>
           {React.cloneElement(icon, { size: 20 })}
         </div>
-        <span className={`text-xs font-bold px-2 py-1 rounded ${trend.includes('+') ? 'text-emerald-500 bg-emerald-500/10' : 'text-slate-400 bg-slate-400/10'}`}>
-          {trend}
-        </span>
+        <div className="flex flex-col items-end">
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isPositive ? 'text-emerald-500 bg-emerald-500/10' : isNegative ? 'text-red-500 bg-red-500/10' : 'text-slate-400 bg-slate-400/10'}`}>
+            {trendText}
+          </span>
+          <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter mt-0.5">vs mês passado</span>
+        </div>
       </div>
       <p className="text-slate-500 text-sm font-medium">{label}</p>
       <p className="text-3xl font-bold mt-1">{value}</p>
@@ -462,6 +474,7 @@ function ClientsView({ initialAction, onActionComplete, showToast }: { initialAc
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: '', document: '', phone: '', address: '' });
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<number | null>(null);
 
   const fetchClients = () => {
     fetch('/api/clients').then(r => r.json()).then(data => {
@@ -517,15 +530,18 @@ function ClientsView({ initialAction, onActionComplete, showToast }: { initialAc
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Tem certeza que deseja excluir este cliente?')) {
+    try {
       const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' });
       if (res.ok) {
         showToast("Cliente removido.");
         fetchClients();
         setOpenMenuId(null);
+        setClientToDelete(null);
       } else {
         showToast("Erro ao excluir cliente.", "error");
       }
+    } catch (error) {
+      showToast("Erro de conexão.", "error");
     }
   };
 
@@ -647,7 +663,7 @@ function ClientsView({ initialAction, onActionComplete, showToast }: { initialAc
                         <Settings size={14} /> Editar
                       </button>
                       <button 
-                        onClick={() => handleDelete(client.id)}
+                        onClick={() => setClientToDelete(client.id)}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-red-500/10 text-red-400 transition-colors flex items-center gap-2"
                       >
                         <X size={14} /> Excluir
@@ -660,6 +676,44 @@ function ClientsView({ initialAction, onActionComplete, showToast }: { initialAc
           </tbody>
         </table>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {clientToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-secondary-dark border border-border-dark rounded-2xl p-6 max-w-sm w-full shadow-2xl"
+            >
+              <div className="flex items-center gap-4 text-red-400 mb-4">
+                <div className="bg-red-400/10 p-3 rounded-xl">
+                  <X size={24} />
+                </div>
+                <h3 className="text-xl font-bold">Excluir Cliente?</h3>
+              </div>
+              <p className="text-slate-400 text-sm mb-6">
+                Esta ação não pode ser desfeita. Todos os dados deste cliente serão removidos permanentemente.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setClientToDelete(null)}
+                  className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => handleDelete(clientToDelete)}
+                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-xl text-sm font-bold transition-colors"
+                >
+                  Excluir
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

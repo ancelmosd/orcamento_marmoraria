@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const db = new Database("marmoraria.db");
+db.pragma('foreign_keys = ON');
 
 // Initialize Database
 db.exec(`
@@ -165,6 +166,23 @@ db.exec(`
       "Bancada para pia com reforços para cuba", 
       JSON.stringify(piaParts)
     );
+
+    // Seed historical data for trends
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
+    const lastMonthISO = lastMonth.toISOString();
+
+    db.prepare("INSERT INTO clients (name, document, phone, address, created_at) VALUES (?, ?, ?, ?, ?)").run(
+      "Histórico S.A.", "11.222.333/0001-44", "(11) 5555-4444", "Rua do Passado, 10", lastMonthISO
+    );
+
+    db.prepare("INSERT INTO quotes (client_id, project_name, total_value, status, created_at) VALUES (?, ?, ?, ?, ?)").run(
+      1, "Reforma Antiga", 15000, "Entregue", lastMonthISO
+    );
+    
+    db.prepare("INSERT INTO quotes (client_id, project_name, total_value, status, created_at) VALUES (?, ?, ?, ?, ?)").run(
+      2, "Cozinha Retro", 8000, "Pendente", lastMonthISO
+    );
   } else {
     // Ensure Ancelmo is there for the demo
     const ancelmo = db.prepare("SELECT * FROM clients WHERE name = ?").get("Ancelmo Siqueira Dias");
@@ -208,16 +226,44 @@ async function startServer() {
 
   // API Routes
   app.get("/api/stats", (req, res) => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+
+    // Helper to calculate trend percentage
+    const calculateTrend = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      return Math.round(((current - previous) / previous) * 100);
+    };
+
+    // Pending Quotes
     const pendingQuotes = db.prepare("SELECT COUNT(*) as count FROM quotes WHERE status = 'Pendente'").get() as any;
+    const pendingCurrent = db.prepare("SELECT COUNT(*) as count FROM quotes WHERE status = 'Pendente' AND created_at >= ?").get(startOfMonth) as any;
+    const pendingLast = db.prepare("SELECT COUNT(*) as count FROM quotes WHERE status = 'Pendente' AND created_at >= ? AND created_at < ?").get(startOfLastMonth, startOfMonth) as any;
+    
+    // Total Clients
     const totalClients = db.prepare("SELECT COUNT(*) as count FROM clients").get() as any;
-    const monthlyRevenue = db.prepare("SELECT SUM(total_value) as total FROM quotes WHERE status IN ('Aprovado', 'Em Produção', 'Entregue')").get() as any;
+    const clientsCurrent = db.prepare("SELECT COUNT(*) as count FROM clients WHERE created_at >= ?").get(startOfMonth) as any;
+    const clientsLast = db.prepare("SELECT COUNT(*) as count FROM clients WHERE created_at >= ? AND created_at < ?").get(startOfLastMonth, startOfMonth) as any;
+
+    // Monthly Revenue
+    const monthlyRevenue = db.prepare("SELECT SUM(total_value) as total FROM quotes WHERE status IN ('Aprovado', 'Em Produção', 'Entregue') AND created_at >= ?").get(startOfMonth) as any;
+    const revenueLast = db.prepare("SELECT SUM(total_value) as total FROM quotes WHERE status IN ('Aprovado', 'Em Produção', 'Entregue') AND created_at >= ? AND created_at < ?").get(startOfLastMonth, startOfMonth) as any;
+
+    // In Production
     const inProduction = db.prepare("SELECT COUNT(*) as count FROM quotes WHERE status = 'Em Produção'").get() as any;
+    const prodCurrent = db.prepare("SELECT COUNT(*) as count FROM quotes WHERE status = 'Em Produção' AND created_at >= ?").get(startOfMonth) as any;
+    const prodLast = db.prepare("SELECT COUNT(*) as count FROM quotes WHERE status = 'Em Produção' AND created_at >= ? AND created_at < ?").get(startOfLastMonth, startOfMonth) as any;
     
     res.json({
       pendingQuotes: pendingQuotes.count || 0,
+      pendingQuotesTrend: calculateTrend(pendingCurrent.count || 0, pendingLast.count || 0),
       totalClients: totalClients.count || 0,
+      totalClientsTrend: calculateTrend(clientsCurrent.count || 0, clientsLast.count || 0),
       monthlyRevenue: monthlyRevenue.total || 0,
-      inProduction: inProduction.count || 0
+      monthlyRevenueTrend: calculateTrend(monthlyRevenue.total || 0, revenueLast.total || 0),
+      inProduction: inProduction.count || 0,
+      inProductionTrend: calculateTrend(prodCurrent.count || 0, prodLast.count || 0)
     });
   });
 
