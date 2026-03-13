@@ -1884,8 +1884,11 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
                               const fullQuote = await res.json();
                               generateQuotePDF(fullQuote);
                               showToast("PDF gerado com sucesso!");
+                            } else {
+                              showToast("Erro ao buscar dados do orçamento.", "error");
                             }
                           } catch (err) {
+                            console.error('PDF Generation Error:', err);
                             showToast("Erro ao gerar PDF.", "error");
                           }
                         }}
@@ -2045,8 +2048,13 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
               <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
                 <button 
                   onClick={() => {
-                    generateQuotePDF(selectedQuoteDetails);
-                    showToast("PDF gerado com sucesso!");
+                    try {
+                      generateQuotePDF(selectedQuoteDetails);
+                      showToast("PDF gerado com sucesso!");
+                    } catch (err) {
+                      console.error('PDF Generation Error:', err);
+                      showToast("Erro ao gerar PDF.", "error");
+                    }
                   }}
                   className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
                 >
@@ -3743,21 +3751,73 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
   const handleExportPDF = async () => {
     const element = document.getElementById('sheet-container');
-    if (!element) return;
+    if (!element) {
+      showToast("Área de visualização não encontrada.", "error");
+      return;
+    }
     
-    const canvas = await html2canvas(element, {
-      backgroundColor: '#0f172a',
-      scale: 2,
-      useCORS: true
-    });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`plano-de-corte-${Date.now()}.pdf`);
+    try {
+      showToast("Gerando PDF, por favor aguarde...");
+      
+      // Ensure the element is visible and has dimensions
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        showToast("A área de visualização está vazia ou oculta.", "error");
+        return;
+      }
+
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#0f172a',
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        allowTaint: true,
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        onclone: (clonedDoc) => {
+          const clonedElement = clonedDoc.getElementById('sheet-container');
+          if (clonedElement) {
+            clonedElement.style.overflow = 'visible';
+            clonedElement.style.height = 'auto';
+            clonedElement.style.width = 'auto';
+          }
+        }
+      });
+      
+      if (!canvas) {
+        throw new Error("Falha ao criar o canvas.");
+      }
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const ratio = imgProps.width / imgProps.height;
+      const displayWidth = pdfWidth - 20; // 10mm margin each side
+      const displayHeight = displayWidth / ratio;
+      
+      // Add a title to the PDF
+      pdf.setFontSize(16);
+      pdf.setTextColor(40, 40, 40);
+      pdf.text('PLANO DE CORTE', pdfWidth / 2, 15, { align: 'center' });
+      
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Gerado em: ${new Date().toLocaleString()}`, 10, 20);
+
+      // Add the image
+      pdf.addImage(imgData, 'PNG', 10, 25, displayWidth, Math.min(displayHeight, pdfHeight - 40));
+      
+      pdf.save(`plano-de-corte-${Date.now()}.pdf`);
+      showToast("PDF do plano de corte gerado com sucesso!");
+    } catch (error) {
+      console.error('Error generating Cut Plan PDF:', error);
+      showToast("Erro ao gerar PDF do plano de corte. Tente novamente.", "error");
+    }
   };
 
   const updateCuts = () => {
