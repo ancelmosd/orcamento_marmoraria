@@ -12,6 +12,7 @@ import {
   Check,
   MoreVertical, 
   Download,
+  FileDown,
   Bolt,
   Info,
   Layers,
@@ -32,6 +33,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Client, Material, Quote, DashboardStats, Service, ModuleTemplate, ModulePart, ModulePartService, Supply, ModulePartSupply } from './types';
+import { generateQuotePDF } from './utils/pdfGenerator';
 
 // Mock data for initial render
 const MOCK_STATS: DashboardStats = {
@@ -1874,6 +1876,25 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
                         <Info size={14} />
                       </button>
                       <button 
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const res = await fetch(`/api/quotes/${quote.id}`);
+                            if (res.ok) {
+                              const fullQuote = await res.json();
+                              generateQuotePDF(fullQuote);
+                              showToast("PDF gerado com sucesso!");
+                            }
+                          } catch (err) {
+                            showToast("Erro ao gerar PDF.", "error");
+                          }
+                        }}
+                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-emerald-400" 
+                        title="Exportar PDF"
+                      >
+                        <FileDown size={14} />
+                      </button>
+                      <button 
                         onClick={(e) => {
                           e.stopPropagation();
                           setQuoteToDelete(quote.id);
@@ -2022,6 +2043,15 @@ function HistoryView({ onEdit, showToast }: { onEdit: (id: number) => void, show
               </div>
 
               <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
+                <button 
+                  onClick={() => {
+                    generateQuotePDF(selectedQuoteDetails);
+                    showToast("PDF gerado com sucesso!");
+                  }}
+                  className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <FileDown size={18} /> Exportar PDF
+                </button>
                 <button 
                   onClick={() => {
                     setSelectedQuoteDetails(null);

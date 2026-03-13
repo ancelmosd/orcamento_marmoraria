@@ -406,7 +406,12 @@ async function startServer() {
 
   app.get("/api/quotes/:id", (req, res) => {
     const { id } = req.params;
-    const quote = db.prepare("SELECT * FROM quotes WHERE id = ?").get(id) as any;
+    const quote = db.prepare(`
+      SELECT q.*, c.name as client_name 
+      FROM quotes q 
+      JOIN clients c ON q.client_id = c.id 
+      WHERE q.id = ?
+    `).get(id) as any;
     if (!quote) return res.status(404).json({ error: "Quote not found" });
     
     const items = db.prepare(`
