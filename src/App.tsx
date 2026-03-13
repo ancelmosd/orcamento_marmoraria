@@ -3814,6 +3814,18 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
               .uppercase { text-transform: uppercase !important; }
               .tracking-widest { letter-spacing: 0.1em !important; }
               
+              /* Force very small font for pieces in PDF */
+              div[class*="absolute border"] span { 
+                font-size: 5px !important; 
+                line-height: 1 !important;
+                display: block !important;
+                text-align: center !important;
+              }
+              div[class*="absolute border"] span:last-child {
+                font-size: 4px !important;
+                margin-top: 1px !important;
+              }
+              
               /* Chapa container */
               div[style*="background-color: rgb(30, 41, 59)"], 
               div[style*="background-color: #1e293b"],
@@ -3832,8 +3844,24 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
               /* Text inside pieces */
               span, p, div { color: #000000 !important; }
               
+              /* Dashed lines for finishing in PDF */
+              .border-dashed { 
+                border-color: #000000 !important; 
+                border-style: dashed !important;
+                border-width: 1.5px !important;
+                display: block !important;
+              }
+              .border-t-2 { border-top-width: 1.5px !important; }
+              .border-b-2 { border-bottom-width: 1.5px !important; }
+              .border-l-2 { border-left-width: 1.5px !important; }
+              .border-r-2 { border-right-width: 1.5px !important; }
+              .top-1 { top: 4px !important; }
+              .bottom-1 { bottom: 4px !important; }
+              .left-1 { left: 4px !important; }
+              .right-1 { right: 4px !important; }
+              
               /* Hide UI elements */
-              button, .cursor-crosshair, .scrollbar-thin { display: none !important; }
+              button, .cursor-crosshair, .scrollbar-thin, .opacity-0 { display: none !important; }
             `;
             clonedDoc.head.appendChild(safeStyle);
 
@@ -4501,11 +4529,11 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                             </button>
                           </div>
 
-                          {/* Edge Indicators - Dashed yellow lines inside */}
-                          {item.edges?.top !== 'Nenhum' && <div className="absolute top-1 left-1 right-1 h-0 border-t border-dashed border-yellow-500 z-10" />}
-                          {item.edges?.bottom !== 'Nenhum' && <div className="absolute bottom-1 left-1 right-1 h-0 border-b border-dashed border-yellow-500 z-10" />}
-                          {item.edges?.left !== 'Nenhum' && <div className="absolute top-1 bottom-1 left-1 w-0 border-l border-dashed border-yellow-500 z-10" />}
-                          {item.edges?.right !== 'Nenhum' && <div className="absolute top-1 bottom-1 right-1 w-0 border-r border-dashed border-yellow-500 z-10" />}
+                          {/* Edge Indicators - Dashed lines for finishing */}
+                          {item.edges?.top !== 'Nenhum' && <div className="absolute top-1 left-1 right-1 h-0 border-t-2 border-dashed border-yellow-400 z-10" />}
+                          {item.edges?.bottom !== 'Nenhum' && <div className="absolute bottom-1 left-1 right-1 h-0 border-b-2 border-dashed border-yellow-400 z-10" />}
+                          {item.edges?.left !== 'Nenhum' && <div className="absolute top-1 bottom-1 left-1 w-0 border-l-2 border-dashed border-yellow-400 z-10" />}
+                          {item.edges?.right !== 'Nenhum' && <div className="absolute top-1 bottom-1 right-1 w-0 border-r-2 border-dashed border-yellow-400 z-10" />}
                         </div>
                       ))}
                     </div>
