@@ -3678,6 +3678,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
   const [showOpenPlans, setShowOpenPlans] = useState(false);
   const [savedPlans, setSavedPlans] = useState<any[]>([]);
   const [viewScale, setViewScale] = useState(5);
+  const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<Quote | null>(null);
 
   const fetchSavedPlans = () => {
     fetch('/api/cut-plans').then(r => r.json()).then(setSavedPlans);
@@ -3761,9 +3762,27 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     try {
       showToast("Gerando PDF detalhado, aguarde...");
       
-      const currentQuote = quotes.find(q => q.id === selectedQuoteId);
-      const clientName = currentQuote?.client_name || "Cliente Avulso";
+      const clientName = selectedQuoteDetails?.client_name || "Cliente Avulso";
       
+      // Calculate metrics
+      const totalAreaPieces = plan.reduce((acc, item) => acc + (item.width * item.length), 0) / 1000000;
+      const numSheets = Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1;
+      const totalAreaSheets = (sheetWidth * sheetHeight * numSheets) / 1000000;
+      const sobra = totalAreaSheets - totalAreaPieces;
+      const aproveitamento = (totalAreaPieces / totalAreaSheets) * 100;
+      const numCuts = plan.length + (new Set(plan.map(p => `${p.sheetIndex}-${p.y}`)).size);
+
+      let estimatedTime = "N/A";
+      if (selectedQuoteDetails && selectedQuoteDetails.services) {
+        const totalMinutes = selectedQuoteDetails.services.reduce((acc, item) => {
+          const serviceDef = services.find(s => s.id === item.service_id);
+          return acc + (item.quantity * (serviceDef?.minutes_per_meter || 0));
+        }, 0);
+        const h = Math.floor(totalMinutes / 60);
+        const m = Math.round(totalMinutes % 60);
+        estimatedTime = `${h}h ${m}min`;
+      }
+
       // Ensure the element is visible and has dimensions
       const rect = element.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) {
@@ -3905,6 +3924,23 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       pdf.text(`Data: ${new Date().toLocaleString('pt-BR')}`, 15, 30);
       pdf.text(`Chapa: ${sheetWidth}x${sheetHeight}mm | Serra: ${sawThickness}mm`, 15, 35);
 
+      // Summary Table
+      autoTable(pdf, {
+        startY: 40,
+        head: [['Métrica', 'Valor']],
+        body: [
+          ['Área das Peças', `${totalAreaPieces.toFixed(2)} m²`],
+          ['Sobra Total', `${sobra.toFixed(2)} m²`],
+          ['Aproveitamento', `${aproveitamento.toFixed(1)}%`],
+          ['Total de Cortes', numCuts.toString()],
+          ['Tempo Estimado', estimatedTime]
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [80, 80, 80] },
+        styles: { fontSize: 8, textColor: [0, 0, 0] },
+        margin: { left: 15, right: 15 }
+      });
+
       // Pieces Table
       const tableData = items.map(item => [
         item.description || 'Peça',
@@ -3914,7 +3950,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       ]);
 
       autoTable(pdf, {
-        startY: 40,
+        startY: (pdf as any).lastAutoTable.finalY + 5,
         head: [['Descrição', 'Dimensões (mm)', 'Material', 'Acabamento']],
         body: tableData,
         theme: 'grid',
@@ -3958,12 +3994,24 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     fetchSavedPlans();
   }, []);
 
+  useEffect(() => {
+    if (selectedQuoteId) {
+      fetch(`/api/quotes/${selectedQuoteId}`)
+        .then(r => r.json())
+        .then(setSelectedQuoteDetails)
+        .catch(err => console.error("Error fetching quote details:", err));
+    } else {
+      setSelectedQuoteDetails(null);
+    }
+  }, [selectedQuoteId]);
+
   const handleImport = async () => {
     if (!selectedQuoteId) return;
     try {
       const res = await fetch(`/api/quotes/${selectedQuoteId}`);
       if (res.ok) {
         const data = await res.json();
+        setSelectedQuoteDetails(data);
         if (data.items) {
           // Extract unique materials
           const materials = Array.from(new Set(data.items.map((item: any) => item.material_name))) as string[];
