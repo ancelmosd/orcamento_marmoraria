@@ -27,7 +27,9 @@ import {
   Square,
   Edit2,
   Save,
-  FolderOpen
+  FolderOpen,
+  Database,
+  Upload
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
@@ -2235,6 +2237,38 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
     }
   };
 
+  const handleBackup = () => {
+    window.location.href = '/api/backup';
+  };
+
+  const handleRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (confirm('ATENÇÃO: Restaurar um backup irá substituir todos os dados atuais. Deseja continuar?')) {
+      const formData = new FormData();
+      formData.append('backup', file);
+
+      try {
+        const res = await fetch('/api/restore', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (res.ok) {
+          showToast("Backup restaurado com sucesso! A página será recarregada.");
+          setTimeout(() => window.location.reload(), 2000);
+        } else {
+          showToast("Erro ao restaurar backup.", "error");
+        }
+      } catch (error) {
+        showToast("Erro de conexão ao restaurar backup.", "error");
+      }
+    }
+    // Reset input
+    e.target.value = '';
+  };
+
   return (
     <div className="space-y-8">
       <div className="space-y-1">
@@ -2444,6 +2478,43 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             {supplies.length === 0 && (
               <p className="text-center py-4 text-slate-500 text-sm italic">Nenhum insumo cadastrado.</p>
             )}
+          </div>
+        </div>
+        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6 lg:col-span-2">
+          <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
+            <Database className="w-5 h-5" /> Backup e Restauração
+          </h3>
+          <p className="text-sm text-slate-400">
+            Gerencie a segurança dos seus dados. Recomendamos fazer backup regularmente.
+          </p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button 
+              onClick={handleBackup}
+              className="flex items-center justify-center gap-3 bg-primary/10 border border-primary/20 text-primary p-4 rounded-xl font-bold hover:bg-primary hover:text-white transition-all group"
+            >
+              <Download className="w-6 h-6 group-hover:scale-110 transition-transform" />
+              <div className="text-left">
+                <p className="text-sm">Fazer Backup</p>
+                <p className="text-[10px] font-normal opacity-70">Baixar arquivo do banco de dados</p>
+              </div>
+            </button>
+
+            <div className="relative">
+              <input 
+                type="file" 
+                accept=".db"
+                onChange={handleRestore}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              />
+              <div className="flex items-center justify-center gap-3 bg-orange-500/10 border border-orange-500/20 text-orange-400 p-4 rounded-xl font-bold hover:bg-orange-500 hover:text-white transition-all group">
+                <Upload className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <div className="text-left">
+                  <p className="text-sm">Restaurar Backup</p>
+                  <p className="text-[10px] font-normal opacity-70">Substituir dados por um arquivo .db</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -4,11 +4,16 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 
+import multer from "multer";
+import fs from "fs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("marmoraria.db");
+let db = new Database("marmoraria.db");
 db.pragma('foreign_keys = ON');
+
+const upload = multer({ dest: 'uploads/' });
 
 // Initialize Database
 db.exec(`
@@ -553,6 +558,31 @@ async function startServer() {
     const { id } = req.params;
     db.prepare("DELETE FROM supplies WHERE id = ?").run(id);
     res.json({ success: true });
+  });
+
+  // Backup and Restore API
+  app.get("/api/backup", (req, res) => {
+    const dbPath = path.join(process.cwd(), "marmoraria.db");
+    res.download(dbPath, `backup_marmoraria_${new Date().toISOString().split('T')[0]}.db`);
+  });
+
+  app.post("/api/restore", upload.single('backup'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+
+    try {
+      db.close();
+      fs.copyFileSync(req.file.path, path.join(process.cwd(), "marmoraria.db"));
+      fs.unlinkSync(req.file.path);
+      
+      // Re-open database
+      db = new Database("marmoraria.db");
+      db.pragma('foreign_keys = ON');
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Restore error:", error);
+      res.status(500).json({ error: "Falha ao restaurar backup" });
+    }
   });
 
   // Vite middleware for development
