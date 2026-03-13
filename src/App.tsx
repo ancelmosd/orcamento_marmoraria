@@ -31,7 +31,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import autoTable from 'jspdf-autotable';
+import * as html2canvasModule from 'html2canvas';
+const html2canvas = (html2canvasModule as any).default || html2canvasModule;
 import { Client, Material, Quote, DashboardStats, Service, ModuleTemplate, ModulePart, ModulePartService, Supply, ModulePartSupply } from './types';
 import { generateQuotePDF } from './utils/pdfGenerator';
 
@@ -3757,7 +3759,10 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     }
     
     try {
-      showToast("Gerando PDF, por favor aguarde...");
+      showToast("Gerando PDF detalhado, aguarde...");
+      
+      const currentQuote = quotes.find(q => q.id === selectedQuoteId);
+      const clientName = currentQuote?.client_name || "Cliente Avulso";
       
       // Ensure the element is visible and has dimensions
       const rect = element.getBoundingClientRect();
@@ -3766,28 +3771,95 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         return;
       }
 
+      // Small delay to ensure UI is stable
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       const canvas = await html2canvas(element, {
-        backgroundColor: '#0f172a',
-        scale: 2,
+        backgroundColor: '#ffffff',
+        scale: 2, // Balanced quality/speed
         useCORS: true,
-        logging: false,
         allowTaint: true,
-        width: element.scrollWidth,
-        height: element.scrollHeight,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
+        logging: false,
         onclone: (clonedDoc) => {
-          const clonedElement = clonedDoc.getElementById('sheet-container');
-          if (clonedElement) {
-            clonedElement.style.overflow = 'visible';
-            clonedElement.style.height = 'auto';
-            clonedElement.style.width = 'auto';
+          try {
+            // CRITICAL: Remove all existing style tags and links to prevent html2canvas 
+            // from crashing while parsing modern CSS (oklch/oklab)
+            const styles = clonedDoc.getElementsByTagName('style');
+            const links = clonedDoc.getElementsByTagName('link');
+            while (styles.length > 0) styles[0].parentNode?.removeChild(styles[0]);
+            while (links.length > 0) links[0].parentNode?.removeChild(links[0]);
+
+            // Inject a minimal, safe CSS for the export
+            const safeStyle = clonedDoc.createElement('style');
+            safeStyle.innerHTML = `
+              * { box-sizing: border-box; font-family: Arial, sans-serif; }
+              #sheet-container { 
+                background-color: #ffffff !important; 
+                color: #000000 !important; 
+                padding: 40px !important;
+                display: block !important;
+                width: auto !important;
+                height: auto !important;
+              }
+              .relative { position: relative !important; }
+              .absolute { position: absolute !important; }
+              .flex { display: flex !important; }
+              .flex-col { flex-direction: column !important; }
+              .items-center { align-items: center !important; }
+              .justify-center { justify-content: center !important; }
+              .gap-2 { gap: 8px !important; }
+              .gap-8 { gap: 32px !important; }
+              .text-\\[10px\\] { font-size: 10px !important; }
+              .font-bold { font-weight: bold !important; }
+              .uppercase { text-transform: uppercase !important; }
+              .tracking-widest { letter-spacing: 0.1em !important; }
+              
+              /* Chapa container */
+              div[style*="background-color: rgb(30, 41, 59)"], 
+              div[style*="background-color: #1e293b"],
+              .bg-slate-800 {
+                background-color: #ffffff !important;
+                border: 2px solid #000000 !important;
+              }
+
+              /* Pieces */
+              div[class*="absolute border"] {
+                background-color: #ffffff !important;
+                border: 1px solid #000000 !important;
+                color: #000000 !important;
+              }
+
+              /* Text inside pieces */
+              span, p, div { color: #000000 !important; }
+              
+              /* Hide UI elements */
+              button, .cursor-crosshair, .scrollbar-thin { display: none !important; }
+            `;
+            clonedDoc.head.appendChild(safeStyle);
+
+            // Manually fix any remaining elements in the clone
+            const allElements = clonedDoc.getElementsByTagName('*');
+            for (let i = 0; i < allElements.length; i++) {
+              const el = allElements[i] as HTMLElement;
+              
+              // Remove transition classes that might interfere
+              el.className = el.className.replace(/transition-[a-z-]+/g, '');
+              
+              // Ensure pieces are visible and black/white
+              if (el.style.position === 'absolute' && el.style.width && el.style.height) {
+                el.style.backgroundColor = '#ffffff';
+                el.style.border = '1px solid #000000';
+                el.style.color = '#000000';
+              }
+            }
+          } catch (e) {
+            console.warn('Error during PDF clone styling:', e);
           }
         }
       });
       
       if (!canvas) {
-        throw new Error("Falha ao criar o canvas.");
+        throw new Error("Falha ao capturar imagem do plano.");
       }
 
       const imgData = canvas.toDataURL('image/png');
@@ -3795,28 +3867,54 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      const imgProps = pdf.getImageProperties(imgData);
-      const ratio = imgProps.width / imgProps.height;
-      const displayWidth = pdfWidth - 20; // 10mm margin each side
-      const displayHeight = displayWidth / ratio;
-      
-      // Add a title to the PDF
-      pdf.setFontSize(16);
-      pdf.setTextColor(40, 40, 40);
+      // Header
+      pdf.setFontSize(18);
+      pdf.setTextColor(0, 0, 0);
       pdf.text('PLANO DE CORTE', pdfWidth / 2, 15, { align: 'center' });
       
-      pdf.setFontSize(8);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(`Gerado em: ${new Date().toLocaleString()}`, 10, 20);
+      pdf.setFontSize(10);
+      pdf.text(`Cliente: ${clientName}`, 15, 25);
+      pdf.text(`Data: ${new Date().toLocaleString('pt-BR')}`, 15, 30);
+      pdf.text(`Chapa: ${sheetWidth}x${sheetHeight}mm | Serra: ${sawThickness}mm`, 15, 35);
 
-      // Add the image
-      pdf.addImage(imgData, 'PNG', 10, 25, displayWidth, Math.min(displayHeight, pdfHeight - 40));
+      // Pieces Table
+      const tableData = items.map(item => [
+        item.description || 'Peça',
+        `${item.width} x ${item.length}`,
+        item.material_name,
+        item.finishing || 'Polido'
+      ]);
+
+      autoTable(pdf, {
+        startY: 40,
+        head: [['Descrição', 'Dimensões (mm)', 'Material', 'Acabamento']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 0, 0] },
+        styles: { fontSize: 8, textColor: [0, 0, 0] },
+        margin: { left: 15, right: 15 }
+      });
+
+      // Add the cut plan image
+      const finalY = (pdf as any).lastAutoTable.finalY + 10;
+      const imgProps = pdf.getImageProperties(imgData);
+      const ratio = imgProps.width / imgProps.height;
       
-      pdf.save(`plano-de-corte-${Date.now()}.pdf`);
-      showToast("PDF do plano de corte gerado com sucesso!");
-    } catch (error) {
-      console.error('Error generating Cut Plan PDF:', error);
-      showToast("Erro ao gerar PDF do plano de corte. Tente novamente.", "error");
+      let displayWidth = pdfWidth - 30;
+      let displayHeight = displayWidth / ratio;
+      
+      if (finalY + displayHeight > pdfHeight - 15) {
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 15, 15, displayWidth, displayHeight);
+      } else {
+        pdf.addImage(imgData, 'PNG', 15, finalY, displayWidth, displayHeight);
+      }
+      
+      pdf.save(`Plano_Corte_${clientName.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+      showToast("PDF completo gerado com sucesso!");
+    } catch (error: any) {
+      console.error('PDF Export Error:', error);
+      showToast(`Erro ao gerar PDF: ${error.message || 'Erro de compatibilidade de cores'}`, "error");
     }
   };
 
