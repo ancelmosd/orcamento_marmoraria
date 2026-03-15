@@ -1261,11 +1261,11 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   }, [editId]);
 
   const addItem = () => {
-    setQuoteItems([...quoteItems, { materialId: '', length: 0, width: 0, quantity: 1, description: '' }]);
+    setQuoteItems([{ materialId: '', length: 0, width: 0, quantity: 1, description: '' }, ...quoteItems]);
   };
 
   const addQuoteService = () => {
-    setQuoteServices([...quoteServices, { serviceId: '', quantity: 1, unitPrice: 0, description: '' }]);
+    setQuoteServices([{ serviceId: '', quantity: 1, unitPrice: 0, description: '' }, ...quoteServices]);
   };
 
   const updateItem = (index: number, field: string, value: any) => {
@@ -2638,7 +2638,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                       type="button"
                       onClick={() => {
                         const newPart: ModulePart = { id: Math.random().toString(36).substr(2, 9), name: '', widthFormula: 'L', lengthFormula: 'P', quantity: 1 };
-                        setEditingModule({...editingModule, parts: [...(editingModule.parts || []), newPart]});
+                        setEditingModule({...editingModule, parts: [newPart, ...(editingModule.parts || [])]});
                       }}
                       className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-lg hover:bg-primary hover:text-white transition-all flex items-center gap-1"
                     >
@@ -3370,10 +3370,13 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
             <div className="pt-4 border-t border-border-dark space-y-4">
               <h5 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Peças Geradas (Clique para editar):</h5>
               <div className="space-y-3">
-                {calculatedParts.map((part, index) => (
+                {calculatedParts
+                  .slice()
+                  .sort((a, b) => (a.id === editingPartId ? -1 : b.id === editingPartId ? 1 : 0))
+                  .map((part) => (
                   <div 
                     key={part.id} 
-                    className="bg-[#1a1f2e]/60 rounded-2xl border border-border-dark hover:border-primary/40 transition-all group overflow-hidden"
+                    className={`rounded-2xl border transition-all duration-500 group overflow-hidden ${editingPartId === part.id ? 'bg-primary/10 border-primary ring-1 ring-primary/20 shadow-xl shadow-primary/10' : 'bg-[#1a1f2e]/60 border-border-dark hover:border-primary/40'}`}
                   >
                     {editingPartId === part.id ? (
                       <div className="p-4 bg-primary/5 space-y-4">
@@ -3384,9 +3387,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                               autoFocus
                               value={part.name}
                               onChange={e => {
-                                const newParts = [...calculatedParts];
-                                newParts[index].name = e.target.value;
-                                setCalculatedParts(newParts);
+                                setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, name: e.target.value } : p));
                                 setHasManualEdits(true);
                               }}
                               className="bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-white outline-none w-full focus:ring-1 focus:ring-primary"
@@ -3410,9 +3411,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                 type="number"
                                 value={part.width}
                                 onChange={e => {
-                                  const newParts = [...calculatedParts];
-                                  newParts[index].width = Number(e.target.value);
-                                  setCalculatedParts(newParts);
+                                  setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, width: Number(e.target.value) } : p));
                                   setHasManualEdits(true);
                                 }}
                                 className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
@@ -3426,9 +3425,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                 type="number"
                                 value={part.length}
                                 onChange={e => {
-                                  const newParts = [...calculatedParts];
-                                  newParts[index].length = Number(e.target.value);
-                                  setCalculatedParts(newParts);
+                                  setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, length: Number(e.target.value) } : p));
                                   setHasManualEdits(true);
                                 }}
                                 className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
@@ -3442,9 +3439,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                             <select 
                               value={part.finish}
                               onChange={e => {
-                                const newParts = [...calculatedParts];
-                                newParts[index].finish = e.target.value;
-                                setCalculatedParts(newParts);
+                                setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, finish: e.target.value } : p));
                                 setHasManualEdits(true);
                               }}
                               className="w-full bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:ring-1 focus:ring-primary"
@@ -3471,15 +3466,14 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                   <select 
                                     value={part.edges?.[side as keyof typeof part.edges] || 'Nenhum'}
                                     onChange={(e) => {
-                                      const newParts = [...calculatedParts];
-                                      if (!newParts[index].edges) {
-                                        newParts[index].edges = { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
-                                      }
-                                      newParts[index].edges = {
-                                        ...newParts[index].edges!,
-                                        [side]: e.target.value
-                                      };
-                                      setCalculatedParts(newParts);
+                                      setCalculatedParts(prev => prev.map(p => {
+                                        if (p.id !== part.id) return p;
+                                        const edges = p.edges || { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
+                                        return {
+                                          ...p,
+                                          edges: { ...edges, [side]: e.target.value }
+                                        };
+                                      }));
                                       setHasManualEdits(true);
                                     }}
                                     className="w-full bg-transparent text-[8px] outline-none text-primary border-none p-0"
@@ -3516,14 +3510,15 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        const newParts = [...calculatedParts];
-                                        const partSupplies = newParts[index].supplies || [];
-                                        if (isSelected) {
-                                          newParts[index].supplies = partSupplies.filter(ps => ps.supply_id !== s.id);
-                                        } else {
-                                          newParts[index].supplies = [...partSupplies, { supply_id: s.id, sides: [] }];
-                                        }
-                                        setCalculatedParts(newParts);
+                                        setCalculatedParts(prev => prev.map(p => {
+                                          if (p.id !== part.id) return p;
+                                          const partSupplies = p.supplies || [];
+                                          if (isSelected) {
+                                            return { ...p, supplies: partSupplies.filter(ps => ps.supply_id !== s.id) };
+                                          } else {
+                                            return { ...p, supplies: [...partSupplies, { supply_id: s.id, sides: [] }] };
+                                          }
+                                        }));
                                         setHasManualEdits(true);
                                       }}
                                       className={`text-[8px] px-2 py-0.5 rounded border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-background-dark border-border-dark text-slate-600 hover:border-slate-400'}`}
@@ -3539,20 +3534,22 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                           key={side}
                                           type="button"
                                           onClick={() => {
-                                            const newParts = [...calculatedParts];
-                                            const partSupplies = [...(newParts[index].supplies || [])];
-                                            const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
-                                            if (sIdx > -1) {
-                                              const currentSides = partSupplies[sIdx].sides || [];
-                                              if (currentSides.includes(side as any)) {
-                                                partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
-                                              } else {
-                                                partSupplies[sIdx].sides = [...currentSides, side as any];
+                                            setCalculatedParts(prev => prev.map(p => {
+                                              if (p.id !== part.id) return p;
+                                              const partSupplies = [...(p.supplies || [])];
+                                              const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                              if (sIdx > -1) {
+                                                const currentSides = partSupplies[sIdx].sides || [];
+                                                if (currentSides.includes(side as any)) {
+                                                  partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
+                                                } else {
+                                                  partSupplies[sIdx].sides = [...currentSides, side as any];
+                                                }
+                                                return { ...p, supplies: partSupplies };
                                               }
-                                              newParts[index].supplies = partSupplies;
-                                              setCalculatedParts(newParts);
-                                              setHasManualEdits(true);
-                                            }
+                                              return p;
+                                            }));
+                                            setHasManualEdits(true);
                                           }}
                                           className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-600'}`}
                                         >
@@ -3831,7 +3828,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     }
     
     try {
-      showToast("Gerando PDF detalhado, aguarde...");
+      showToast("Gerando PDF vetorial de alta qualidade...");
       
       const clientName = selectedQuoteDetails?.client_name || "Cliente Avulso";
       
@@ -3854,143 +3851,18 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         estimatedTime = `${h}h ${m}min`;
       }
 
-      // Ensure the element is visible and has dimensions
-      const rect = element.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        showToast("A área de visualização está vazia ou oculta.", "error");
-        return;
-      }
-
-      // Small delay to ensure UI is stable
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      const canvas = await html2canvas(element, {
-        backgroundColor: '#ffffff',
-        scale: 2, // Balanced quality/speed
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        onclone: (clonedDoc) => {
-          try {
-            // CRITICAL: Remove all existing style tags and links to prevent html2canvas 
-            // from crashing while parsing modern CSS (oklch/oklab)
-            const styles = clonedDoc.getElementsByTagName('style');
-            const links = clonedDoc.getElementsByTagName('link');
-            while (styles.length > 0) styles[0].parentNode?.removeChild(styles[0]);
-            while (links.length > 0) links[0].parentNode?.removeChild(links[0]);
-
-            // Inject a minimal, safe CSS for the export
-            const safeStyle = clonedDoc.createElement('style');
-            safeStyle.innerHTML = `
-              * { box-sizing: border-box; font-family: Arial, sans-serif; }
-              #sheet-container { 
-                background-color: #ffffff !important; 
-                color: #000000 !important; 
-                padding: 40px !important;
-                display: block !important;
-                width: auto !important;
-                height: auto !important;
-              }
-              .relative { position: relative !important; }
-              .absolute { position: absolute !important; }
-              .flex { display: flex !important; }
-              .flex-col { flex-direction: column !important; }
-              .items-center { align-items: center !important; }
-              .justify-center { justify-content: center !important; }
-              .gap-2 { gap: 8px !important; }
-              .gap-8 { gap: 32px !important; }
-              .text-\\[10px\\] { font-size: 10px !important; }
-              .font-bold { font-weight: bold !important; }
-              .uppercase { text-transform: uppercase !important; }
-              .tracking-widest { letter-spacing: 0.1em !important; }
-              
-              /* Force very small font for pieces in PDF */
-              div[class*="absolute border"] span { 
-                font-size: 5px !important; 
-                line-height: 1 !important;
-                display: block !important;
-                text-align: center !important;
-              }
-              div[class*="absolute border"] span:last-child {
-                font-size: 4px !important;
-                margin-top: 1px !important;
-              }
-              
-              /* Chapa container */
-              div[style*="background-color: rgb(30, 41, 59)"], 
-              div[style*="background-color: #1e293b"],
-              .bg-slate-800 {
-                background-color: #ffffff !important;
-                border: 2px solid #000000 !important;
-              }
-
-              /* Pieces */
-              div[class*="absolute border"] {
-                background-color: #ffffff !important;
-                border: 1px solid #000000 !important;
-                color: #000000 !important;
-              }
-
-              /* Text inside pieces */
-              span, p, div { color: #000000 !important; }
-              
-              /* Dashed lines for finishing in PDF */
-              .border-dashed { 
-                border-color: #000000 !important; 
-                border-style: dashed !important;
-                border-width: 1.5px !important;
-                display: block !important;
-              }
-              .border-t-2 { border-top-width: 1.5px !important; }
-              .border-b-2 { border-bottom-width: 1.5px !important; }
-              .border-l-2 { border-left-width: 1.5px !important; }
-              .border-r-2 { border-right-width: 1.5px !important; }
-              .top-1 { top: 4px !important; }
-              .bottom-1 { bottom: 4px !important; }
-              .left-1 { left: 4px !important; }
-              .right-1 { right: 4px !important; }
-              
-              /* Hide UI elements */
-              button, .cursor-crosshair, .scrollbar-thin, .opacity-0 { display: none !important; }
-            `;
-            clonedDoc.head.appendChild(safeStyle);
-
-            // Manually fix any remaining elements in the clone
-            const allElements = clonedDoc.getElementsByTagName('*');
-            for (let i = 0; i < allElements.length; i++) {
-              const el = allElements[i] as HTMLElement;
-              
-              // Remove transition classes that might interfere
-              el.className = el.className.replace(/transition-[a-z-]+/g, '');
-              
-              // Ensure pieces are visible and black/white
-              if (el.style.position === 'absolute' && el.style.width && el.style.height) {
-                el.style.backgroundColor = '#ffffff';
-                el.style.border = '1px solid #000000';
-                el.style.color = '#000000';
-              }
-            }
-          } catch (e) {
-            console.warn('Error during PDF clone styling:', e);
-          }
-        }
-      });
-      
-      if (!canvas) {
-        throw new Error("Falha ao capturar imagem do plano.");
-      }
-
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
       // Header
       pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(0, 0, 0);
       pdf.text('PLANO DE CORTE', pdfWidth / 2, 15, { align: 'center' });
       
       pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
       pdf.text(`Cliente: ${clientName}`, 15, 25);
       pdf.text(`Data: ${new Date().toLocaleString('pt-BR')}`, 15, 30);
       pdf.text(`Chapa: ${sheetWidth}x${sheetHeight}mm | Serra: ${sawThickness}mm`, 15, 35);
@@ -4030,23 +3902,107 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         margin: { left: 15, right: 15 }
       });
 
-      // Add the cut plan image
-      const finalY = (pdf as any).lastAutoTable.finalY + 10;
-      const imgProps = pdf.getImageProperties(imgData);
-      const ratio = imgProps.width / imgProps.height;
-      
-      let displayWidth = pdfWidth - 30;
-      let displayHeight = displayWidth / ratio;
-      
-      if (finalY + displayHeight > pdfHeight - 15) {
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 15, 15, displayWidth, displayHeight);
-      } else {
-        pdf.addImage(imgData, 'PNG', 15, finalY, displayWidth, displayHeight);
+      // Manual PDF Drawing for high quality (vector-based)
+      const margin = 15;
+      const availableWidth = pdfWidth - (margin * 2);
+      const scale = availableWidth / sheetWidth;
+      const displaySheetHeight = sheetHeight * scale;
+
+      for (let s = 0; s < numSheets; s++) {
+        const sheetPlan = plan.filter(p => p.sheetIndex === s);
+        
+        // Check if we need a new page
+        let currentY = (pdf as any).lastAutoTable?.finalY + 15 || 45;
+        if (currentY + displaySheetHeight > pdfHeight - 20) {
+          pdf.addPage();
+          currentY = 20;
+        }
+
+        // Sheet Header
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`CHAPA ${s + 1} - ${sheetWidth}x${sheetHeight}mm`, margin, currentY - 5);
+        
+        // Draw Sheet Background (light gray)
+        pdf.setFillColor(245, 245, 245);
+        pdf.rect(margin, currentY, availableWidth, displaySheetHeight, 'F');
+        
+        // Draw Sheet Border
+        pdf.setDrawColor(0);
+        pdf.setLineWidth(0.5);
+        pdf.rect(margin, currentY, availableWidth, displaySheetHeight, 'S');
+
+        // Draw Pieces
+        sheetPlan.forEach(piece => {
+          const px = margin + (piece.x * scale);
+          const py = currentY + (piece.y * scale);
+          const pw = piece.width * scale;
+          const ph = piece.length * scale;
+
+          // Piece Background (white)
+          pdf.setFillColor(255, 255, 255);
+          pdf.rect(px, py, pw, ph, 'F');
+          
+          // Piece Border
+          pdf.setDrawColor(0);
+          pdf.setLineWidth(0.2);
+          pdf.rect(px, py, pw, ph, 'S');
+
+          // Draw Edges (Dashed Lines) - Golden color like UI
+          if (piece.edges) {
+            pdf.setDrawColor(218, 165, 32); // Goldenrod
+            pdf.setLineWidth(0.4);
+            pdf.setLineDashPattern([1, 1], 0);
+            
+            const edgeOffset = 0.8; // distance from border
+            
+            if (piece.edges.top !== 'Nenhum') pdf.line(px + 0.5, py + edgeOffset, px + pw - 0.5, py + edgeOffset);
+            if (piece.edges.bottom !== 'Nenhum') pdf.line(px + 0.5, py + ph - edgeOffset, px + pw - 0.5, py + ph - edgeOffset);
+            if (piece.edges.left !== 'Nenhum') pdf.line(px + edgeOffset, py + 0.5, px + edgeOffset, py + ph - 0.5);
+            if (piece.edges.right !== 'Nenhum') pdf.line(px + pw - edgeOffset, py + 0.5, px + pw - edgeOffset, py + ph - 0.5);
+            
+            pdf.setLineDashPattern([], 0); // Reset dash
+            pdf.setDrawColor(0); // Reset color
+            pdf.setLineWidth(0.2);
+          }
+
+          // Piece Labels - Adapted to size
+          if (pw > 4 && ph > 3) {
+            const label = piece.description || 'Peça';
+            const dimLabel = `${piece.width}x${piece.length}`;
+            
+            // Dynamic font size
+            let fontSize = Math.min(6, pw / 6, ph / 4);
+            if (fontSize < 2.5) fontSize = 2.5; 
+            
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(fontSize);
+            
+            // Truncate label if too wide
+            let displayLabel = label;
+            if (pdf.getTextWidth(displayLabel) > pw - 1) {
+              displayLabel = label.substring(0, Math.max(3, Math.floor(pw / (fontSize * 0.4)))) + '..';
+            }
+
+            const centerY = py + (ph / 2);
+            
+            if (ph > fontSize * 2.5) {
+              pdf.text(displayLabel, px + (pw / 2), centerY - (fontSize * 0.2), { align: 'center', maxWidth: pw - 1 });
+              pdf.setFont('helvetica', 'normal');
+              pdf.setFontSize(fontSize * 0.85);
+              pdf.text(dimLabel, px + (pw / 2), centerY + (fontSize * 0.9), { align: 'center' });
+            } else if (ph > fontSize * 1.2) {
+              // Only dimensions if piece is too short
+              pdf.text(dimLabel, px + (pw / 2), centerY + (fontSize * 0.3), { align: 'center' });
+            }
+          }
+        });
+
+        (pdf as any).lastAutoTable = { finalY: currentY + displaySheetHeight };
       }
       
       pdf.save(`Plano_Corte_${clientName.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
-      showToast("PDF completo gerado com sucesso!");
+      showToast("PDF vetorial gerado com sucesso!");
     } catch (error: any) {
       console.error('PDF Export Error:', error);
       showToast(`Erro ao gerar PDF: ${error.message || 'Erro de compatibilidade de cores'}`, "error");
