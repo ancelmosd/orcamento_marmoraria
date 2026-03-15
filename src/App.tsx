@@ -4108,8 +4108,11 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                   const edgeString = parts[1];
                   if (edgeString.includes('Topo: ')) edges.top = edgeString.split('Topo: ')[1].split(',')[0].trim();
                   if (edgeString.includes('Base: ')) edges.bottom = edgeString.split('Base: ')[1].split(',')[0].trim();
-                  if (edgeString.includes('Esq: ')) edges.left = edgeString.split('Esq: ')[1].split(',')[0].trim();
-                  if (edgeString.includes('Dir: ')) edges.right = edgeString.split('Dir: ')[1].split(',')[0].trim();
+                  if (edgeString.includes('Esq.: ')) edges.left = edgeString.split('Esq.: ')[1].split(',')[0].trim();
+                  if (edgeString.includes('Dir.: ')) edges.right = edgeString.split('Dir.: ')[1].split(',')[0].trim();
+                  // Fallback for versions without dot
+                  if (edges.left === 'Nenhum' && edgeString.includes('Esq: ')) edges.left = edgeString.split('Esq: ')[1].split(',')[0].trim();
+                  if (edges.right === 'Nenhum' && edgeString.includes('Dir: ')) edges.right = edgeString.split('Dir: ')[1].split(',')[0].trim();
                 }
               }
             }
@@ -4517,7 +4520,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                           <span className="text-[8px] text-primary font-medium">
                             • {Object.entries(item.edges)
                                 .filter(([_, v]) => v !== 'Nenhum')
-                                .map(([k, v]) => `${k === 'top' ? 'Topo' : k === 'bottom' ? 'Base' : k === 'left' ? 'Esq' : 'Dir'}: ${v}`)
+                                .map(([k, v]) => `${k === 'top' ? 'Topo' : k === 'bottom' ? 'Base' : k === 'left' ? 'Esq.' : 'Dir.'}: ${v}`)
                                 .join(', ')}
                           </span>
                         )}
