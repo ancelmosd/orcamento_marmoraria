@@ -3747,6 +3747,9 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
   const [savedPlans, setSavedPlans] = useState<any[]>([]);
   const [viewScale, setViewScale] = useState(5);
   const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<Quote | null>(null);
+  const [optimizationStrategy, setOptimizationStrategy] = useState<'horizontal' | 'vertical' | 'minWaste'>('horizontal');
+  const [trimEdges, setTrimEdges] = useState<boolean>(false);
+  const [trimValue, setTrimValue] = useState<number>(20); // 20mm default trim
 
   const fetchSavedPlans = () => {
     fetch('/api/cut-plans').then(r => r.json()).then(setSavedPlans);
@@ -3767,7 +3770,9 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
           manual_positions: manualPositions,
           sheet_width: sheetWidth,
           sheet_height: sheetHeight,
-          saw_thickness: sawThickness
+          saw_thickness: sawThickness,
+          trim_edges: trimEdges,
+          trim_value: trimValue
         })
       });
 
@@ -3794,6 +3799,8 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         setSheetWidth(data.sheet_width);
         setSheetHeight(data.sheet_height);
         setSawThickness(data.saw_thickness);
+        if (data.trim_edges !== undefined) setTrimEdges(data.trim_edges);
+        if (data.trim_value !== undefined) setTrimValue(data.trim_value);
         setShowOpenPlans(false);
         showToast('Plano carregado com sucesso!');
       } else {
@@ -4238,6 +4245,10 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     const currentPlan: any[] = [];
     let currentSheetIndex = 0;
 
+    const effectiveTrim = trimEdges ? trimValue : 0;
+    const effectiveWidth = sheetWidth - (effectiveTrim * 2);
+    const effectiveHeight = sheetHeight - (effectiveTrim * 2);
+
     // Place manual items first (on first sheet)
     manualItems.forEach(item => {
       const pos = manualPositions[item.id];
@@ -4252,11 +4263,23 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       });
     });
 
-    // Simple Shelf Packing Algorithm for the rest
-    const sortedItems = [...autoItems].sort((a, b) => b.length - a.length);
+    // Optimization Strategies
+    let sortedItems = [...autoItems];
     
-    let currentX = 0;
-    let currentY = 0;
+    if (optimizationStrategy === 'minWaste') {
+      // Sort by area (descending) for better packing in minWaste
+      sortedItems.sort((a, b) => (b.width * b.length) - (a.width * a.length));
+    } else if (optimizationStrategy === 'vertical') {
+      // Sort by width for vertical strips
+      sortedItems.sort((a, b) => b.width - a.width);
+    } else {
+      // Sort by length for horizontal strips
+      sortedItems.sort((a, b) => b.length - a.length);
+    }
+    
+    let currentX = effectiveTrim;
+    let currentY = effectiveTrim;
+    let shelfWidth = 0;
     let shelfHeight = 0;
 
     sortedItems.forEach(item => {
@@ -4266,51 +4289,84 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
       // Try to rotate if allowed
       if (allowRotation) {
-        if (currentX + w > sheetWidth && currentX + l <= sheetWidth) {
-          [w, l] = [l, w];
-          rotated = true;
-        } 
-        else if (currentX + l <= sheetWidth && l < w) {
-          [w, l] = [l, w];
-          rotated = true;
+        if (optimizationStrategy === 'vertical') {
+          if (currentY + l > sheetHeight - effectiveTrim && currentY + w <= sheetHeight - effectiveTrim) {
+            [w, l] = [l, w];
+            rotated = true;
+          } else if (currentY + w <= sheetHeight - effectiveTrim && w < l) {
+             [w, l] = [l, w];
+             rotated = true;
+          }
+        } else {
+          if (currentX + w > sheetWidth - effectiveTrim && currentX + l <= sheetWidth - effectiveTrim) {
+            [w, l] = [l, w];
+            rotated = true;
+          } 
+          else if (currentX + l <= sheetWidth - effectiveTrim && l < w) {
+            [w, l] = [l, w];
+            rotated = true;
+          }
         }
       }
 
-      // Check if item fits in current shelf
-      if (currentX + w > sheetWidth) {
-        currentX = 0;
-        currentY += shelfHeight + sawThickness;
-        shelfHeight = 0;
-      }
-
-      // Check if item fits in current sheet
-      if (currentY + l > sheetHeight) {
-        // Start new sheet
-        currentSheetIndex++;
-        currentX = 0;
-        currentY = 0;
-        shelfHeight = 0;
-        
-        // Re-check if it fits in the new empty sheet
-        if (currentX + w > sheetWidth) {
-           // Item too wide for sheet even when empty
-           return;
+      if (optimizationStrategy === 'vertical') {
+        // Vertical Shelf Packing
+        if (currentY + l > sheetHeight - effectiveTrim) {
+          currentY = effectiveTrim;
+          currentX += shelfWidth + sawThickness;
+          shelfWidth = 0;
         }
-      }
 
-      if (currentY + l <= sheetHeight) {
-        currentPlan.push({
-          ...item,
-          width: w,
-          length: l,
-          rotated,
-          x: currentX,
-          y: currentY,
-          sheetIndex: currentSheetIndex
-        });
+        if (currentX + w > sheetWidth - effectiveTrim) {
+          currentSheetIndex++;
+          currentX = effectiveTrim;
+          currentY = effectiveTrim;
+          shelfWidth = 0;
+        }
 
-        currentX += w + sawThickness;
-        shelfHeight = Math.max(shelfHeight, l);
+        if (currentX + w <= sheetWidth - effectiveTrim) {
+          currentPlan.push({
+            ...item,
+            width: w,
+            length: l,
+            rotated,
+            x: currentX,
+            y: currentY,
+            sheetIndex: currentSheetIndex
+          });
+
+          currentY += l + sawThickness;
+          shelfWidth = Math.max(shelfWidth, w);
+        }
+      } else {
+        // Horizontal Shelf Packing
+        if (currentX + w > sheetWidth - effectiveTrim) {
+          currentX = effectiveTrim;
+          currentY += shelfHeight + sawThickness;
+          shelfHeight = 0;
+        }
+
+        if (currentY + l > sheetHeight - effectiveTrim) {
+          currentSheetIndex++;
+          currentX = effectiveTrim;
+          currentY = effectiveTrim;
+          shelfHeight = 0;
+        }
+
+        if (currentY + l <= sheetHeight - effectiveTrim) {
+          currentPlan.push({
+            ...item,
+            width: w,
+            length: l,
+            rotated,
+            x: currentX,
+            y: currentY,
+            sheetIndex: currentSheetIndex
+          });
+
+          currentX += w + sawThickness;
+          shelfHeight = Math.max(shelfHeight, l);
+        }
       }
     });
 
@@ -4319,7 +4375,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
   useEffect(() => {
     generatePlan();
-  }, [items, sheetWidth, sheetHeight, sawThickness, allowRotation, selectedMaterial, manualPositions]);
+  }, [items, sheetWidth, sheetHeight, sawThickness, allowRotation, selectedMaterial, manualPositions, optimizationStrategy, trimEdges, trimValue]);
 
   const removeItem = (id: string) => {
     setItems(items.filter(item => item.id !== id));
@@ -4418,17 +4474,58 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                   className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
-              <div className="flex items-end pb-1.5">
-                <label className="flex items-center gap-2 text-[10px] font-medium text-slate-300 cursor-pointer">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
                   <input 
                     type="checkbox"
-                    checked={allowRotation}
-                    onChange={e => setAllowRotation(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-border-dark bg-background-dark text-primary focus:ring-primary"
+                    checked={trimEdges}
+                    onChange={e => setTrimEdges(e.target.checked)}
+                    className="w-3 h-3 rounded border-border-dark bg-background-dark text-primary focus:ring-primary"
                   />
-                  Rotação
+                  Aparar Bordas (mm)
                 </label>
+                <input 
+                  type="number"
+                  disabled={!trimEdges}
+                  value={trimValue}
+                  onChange={e => setTrimValue(parseInt(e.target.value) || 0)}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary disabled:opacity-30 transition-opacity"
+                />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Estratégia de Corte</label>
+              <div className="grid grid-cols-3 gap-1 p-1 bg-background-dark rounded-lg border border-border-dark">
+                <button 
+                  onClick={() => setOptimizationStrategy('horizontal')}
+                  className={`py-1.5 text-[10px] font-bold rounded-md transition-all ${optimizationStrategy === 'horizontal' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  Horizontal
+                </button>
+                <button 
+                  onClick={() => setOptimizationStrategy('vertical')}
+                  className={`py-1.5 text-[10px] font-bold rounded-md transition-all ${optimizationStrategy === 'vertical' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  Vertical
+                </button>
+                <button 
+                  onClick={() => setOptimizationStrategy('minWaste')}
+                  className={`py-1.5 text-[10px] font-bold rounded-md transition-all ${optimizationStrategy === 'minWaste' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  Menor Área
+                </button>
+              </div>
+              
+              <label className="flex items-center gap-2 text-[10px] font-medium text-slate-300 cursor-pointer mt-2 bg-background-dark/50 p-2 rounded-lg border border-border-dark/50 hover:bg-background-dark transition-all">
+                <input 
+                  type="checkbox"
+                  checked={allowRotation}
+                  onChange={e => setAllowRotation(e.target.checked)}
+                  className="w-4 h-4 rounded border-border-dark bg-background-dark text-primary focus:ring-primary"
+                />
+                <span>Permitir rotação para menor desperdício</span>
+              </label>
             </div>
           </div>
 
