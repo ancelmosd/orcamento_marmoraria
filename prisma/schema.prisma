@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model clients {
+  id         Int       @id @default(autoincrement())
+  name       String
+  document   String?
+  phone      String?
+  address    String?
+  created_at DateTime? @default(now())
+  quotes     quotes[]
+}
+
+model cut_plans {
+  id               Int       @id @default(autoincrement())
+  name             String
+  items            String
+  plan             String
+  manual_positions String
+  sheet_width      Int?
+  sheet_height     Int?
+  saw_thickness    Int?
+  created_at       DateTime? @default(now())
+}
+
+model description_templates {
+  id   Int    @id @default(autoincrement())
+  text String @unique(map: "sqlite_autoindex_description_templates_1")
+}
+
+model materials {
+  id          Int           @id @default(autoincrement())
+  name        String
+  price       Float
+  quantity    Float?        @default(0)
+  description String?
+  quote_items quote_items[]
+}
+
+model module_templates {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+  parts       String
+}
+
+model quote_items {
+  id          Int        @id @default(autoincrement())
+  quote_id    Int?
+  material_id Int?
+  length      Float?
+  width       Float?
+  quantity    Int?
+  subtotal_m2 Float?
+  description String?
+  materials   materials? @relation(fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotes      quotes?    @relation(fields: [quote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model quote_services {
+  id          Int       @id @default(autoincrement())
+  quote_id    Int?
+  service_id  Int?
+  quantity    Float?
+  unit_price  Float?
+  description String?
+  services    services? @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotes      quotes?   @relation(fields: [quote_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model quotes {
+  id             Int              @id @default(autoincrement())
+  client_id      Int?
+  project_name   String?
+  total_value    Float?
+  discount       Float?           @default(0)
+  status         String?          @default("Rascunho")
+  created_at     DateTime?        @default(now())
+  delivery_date  String?
+  quote_items    quote_items[]
+  quote_services quote_services[]
+  clients        clients?         @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model services {
+  id                Int              @id @default(autoincrement())
+  name              String
+  price             Float
+  description       String?
+  minutes_per_meter Float?           @default(0)
+  category          String?          @default("other")
+  quote_services    quote_services[]
+}
+
+model supplies {
+  id                Int    @id @default(autoincrement())
+  name              String
+  price_per_meter   Float
+  minutes_per_meter Float
+}
