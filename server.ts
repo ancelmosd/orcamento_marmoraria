@@ -75,80 +75,101 @@ async function startServer() {
   });
 
   app.get("/api/stats", async (req, res) => {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    try {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-    // Helper to calculate trend percentage
-    const calculateTrend = (current: number, previous: number) => {
-      if (previous === 0) return current > 0 ? 100 : 0;
-      return Math.round(((current - previous) / previous) * 100);
-    };
+      const calculateTrend = (current: number, previous: number) => {
+        if (!previous || previous === 0) return current > 0 ? 100 : 0;
+        return Math.round(((current - previous) / previous) * 100);
+      };
 
-    const results = await Promise.all([
-      prisma.quotes.count({ where: { status: 'Pendente' } }),
-      prisma.quotes.count({ where: { status: 'Pendente', created_at: { gte: startOfMonth } } }),
-      prisma.quotes.count({ where: { status: 'Pendente', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }),
-      
-      prisma.clients.count(),
-      prisma.clients.count({ where: { created_at: { gte: startOfMonth } } }),
-      prisma.clients.count({ where: { created_at: { gte: startOfLastMonth, lt: startOfMonth } } }),
+      const results = await Promise.all([
+        prisma.quotes.count({ where: { status: 'Pendente' } }).catch(() => 0),
+        prisma.quotes.count({ where: { status: 'Pendente', created_at: { gte: startOfMonth } } }).catch(() => 0),
+        prisma.quotes.count({ where: { status: 'Pendente', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }).catch(() => 0),
+        
+        prisma.clients.count().catch(() => 0),
+        prisma.clients.count({ where: { created_at: { gte: startOfMonth } } }).catch(() => 0),
+        prisma.clients.count({ where: { created_at: { gte: startOfLastMonth, lt: startOfMonth } } }).catch(() => 0),
 
-      prisma.quotes.aggregate({ 
-        _sum: { total_value: true }, 
-        where: { status: { in: ['Aprovado', 'Em Produção', 'Entregue'] }, created_at: { gte: startOfMonth } } 
-      }),
-      prisma.quotes.aggregate({ 
-        _sum: { total_value: true }, 
-        where: { status: { in: ['Aprovado', 'Em Produção', 'Entregue'] }, created_at: { gte: startOfLastMonth, lt: startOfMonth } } 
-      }),
+        prisma.quotes.aggregate({ 
+          _sum: { total_value: true }, 
+          where: { status: { in: ['Aprovado', 'Em Produção', 'Entregue'] }, created_at: { gte: startOfMonth } } 
+        }).catch(() => ({ _sum: { total_value: 0 } })),
+        prisma.quotes.aggregate({ 
+          _sum: { total_value: true }, 
+          where: { status: { in: ['Aprovado', 'Em Produção', 'Entregue'] }, created_at: { gte: startOfLastMonth, lt: startOfMonth } } 
+        }).catch(() => ({ _sum: { total_value: 0 } })),
 
-      prisma.quotes.count({ where: { status: 'Em Produção' } }),
-      prisma.quotes.count({ where: { status: 'Em Produção', created_at: { gte: startOfMonth } } }),
-      prisma.quotes.count({ where: { status: 'Em Produção', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }),
+        prisma.quotes.count({ where: { status: 'Em Produção' } }).catch(() => 0),
+        prisma.quotes.count({ where: { status: 'Em Produção', created_at: { gte: startOfMonth } } }).catch(() => 0),
+        prisma.quotes.count({ where: { status: 'Em Produção', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }).catch(() => 0),
 
-      prisma.quotes.count({ where: { status: 'Aprovado' } }),
-      prisma.quotes.count({ where: { status: 'Aprovado', created_at: { gte: startOfMonth } } }),
-      prisma.quotes.count({ where: { status: 'Aprovado', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }),
+        prisma.quotes.count({ where: { status: 'Aprovado' } }).catch(() => 0),
+        prisma.quotes.count({ where: { status: 'Aprovado', created_at: { gte: startOfMonth } } }).catch(() => 0),
+        prisma.quotes.count({ where: { status: 'Aprovado', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }).catch(() => 0),
 
-      prisma.payments.aggregate({
-        _sum: { amount: true },
-        where: { status: 'pendente', due_date: { gte: now } }
-      }),
-      prisma.payments.aggregate({
-        _sum: { amount: true },
-        where: { status: 'pendente', due_date: { lt: now } }
-      }),
-      prisma.payments.aggregate({
-        _sum: { amount: true },
-        where: { status: 'pago' }
-      })
-    ]);
+        prisma.payments.aggregate({
+          _sum: { amount: true },
+          where: { status: 'pendente', due_date: { gte: now } }
+        }).catch(() => ({ _sum: { amount: 0 } })),
+        prisma.payments.aggregate({
+          _sum: { amount: true },
+          where: { status: 'pendente', due_date: { lt: now } }
+        }).catch(() => ({ _sum: { amount: 0 } })),
+        prisma.payments.aggregate({
+          _sum: { amount: true },
+          where: { status: 'pago' }
+        }).catch(() => ({ _sum: { amount: 0 } }))
+      ]);
 
-    const [
-      pendingQuotes, pendingCurrent, pendingLast,
-      totalClients, clientsCurrent, clientsLast,
-      monthlyRevenue, revenueLast,
-      inProduction, prodCurrent, prodLast,
-      approvedQuotes, approvedCurrent, approvedLast,
-      receivableAgg, overdueAgg, receivedAgg
-    ] = results;
+      const [
+        pendingQuotes, pendingCurrent, pendingLast,
+        totalClients, clientsCurrent, clientsLast,
+        monthlyRevenue, revenueLast,
+        inProduction, prodCurrent, prodLast,
+        approvedQuotes, approvedCurrent, approvedLast,
+        receivableAgg, overdueAgg, receivedAgg
+      ] = results;
 
-    res.json({
-      pendingQuotes,
-      pendingQuotesTrend: calculateTrend(pendingCurrent, pendingLast),
-      approvedQuotes,
-      approvedQuotesTrend: calculateTrend(approvedCurrent, approvedLast),
-      totalClients,
-      totalClientsTrend: calculateTrend(clientsCurrent, clientsLast),
-      monthlyRevenue: monthlyRevenue._sum.total_value || 0,
-      monthlyRevenueTrend: calculateTrend(monthlyRevenue._sum.total_value || 0, (revenueLast._sum.total_value as any) || 0),
-      inProduction,
-      inProductionTrend: calculateTrend(prodCurrent, prodLast),
-      totalReceivable: receivableAgg._sum.amount || 0,
-      totalOverdue: overdueAgg._sum.amount || 0,
-      totalReceived: receivedAgg._sum.amount || 0
-    });
+      const currentRev = monthlyRevenue?._sum?.total_value || 0;
+      const lastRev = revenueLast?._sum?.total_value || 0;
+
+      res.json({
+        pendingQuotes: pendingQuotes || 0,
+        pendingQuotesTrend: calculateTrend(pendingCurrent || 0, pendingLast || 0),
+        approvedQuotes: approvedQuotes || 0,
+        approvedQuotesTrend: calculateTrend(approvedCurrent || 0, approvedLast || 0),
+        totalClients: totalClients || 0,
+        totalClientsTrend: calculateTrend(clientsCurrent || 0, clientsLast || 0),
+        monthlyRevenue: currentRev,
+        monthlyRevenueTrend: calculateTrend(currentRev, lastRev),
+        inProduction: inProduction || 0,
+        inProductionTrend: calculateTrend(prodCurrent || 0, prodLast || 0),
+        totalReceivable: receivableAgg?._sum?.amount || 0,
+        totalOverdue: overdueAgg?._sum?.amount || 0,
+        totalReceived: receivedAgg?._sum?.amount || 0
+      });
+    } catch (error) {
+      console.error("Stats error:", error);
+      res.status(500).json({
+        pendingQuotes: 0,
+        pendingQuotesTrend: 0,
+        approvedQuotes: 0,
+        approvedQuotesTrend: 0,
+        totalClients: 0,
+        totalClientsTrend: 0,
+        monthlyRevenue: 0,
+        monthlyRevenueTrend: 0,
+        inProduction: 0,
+        inProductionTrend: 0,
+        totalReceivable: 0,
+        totalOverdue: 0,
+        totalReceived: 0
+      });
+    }
   });
 
   app.get("/api/clients", async (req, res) => {
@@ -167,11 +188,23 @@ async function startServer() {
   });
 
   app.get("/api/clients/:id", async (req, res) => {
-    const { id } = req.params;
-    const client = await prisma.clients.findUnique({
-      where: { id: parseInt(id) }
-    });
-    res.json(client);
+    try {
+      const { id } = req.params;
+      const clientId = parseInt(id);
+      if (isNaN(clientId)) {
+        return res.status(400).json({ error: "ID inválido" });
+      }
+      const client = await prisma.clients.findUnique({
+        where: { id: clientId }
+      });
+      if (!client) {
+        return res.status(404).json({ error: "Cliente não encontrado" });
+      }
+      res.json(client);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json(null);
+    }
   });
 
   app.put("/api/clients/:id", async (req, res) => {
@@ -193,12 +226,17 @@ async function startServer() {
   });
 
   app.get("/api/payments", async (req, res) => {
-    const { client_id } = req.query;
-    const payments = await prisma.payments.findMany({
-      where: { client_id: parseInt(client_id as string) },
-      orderBy: { created_at: 'desc' }
-    });
-    res.json(payments);
+    try {
+      const { client_id } = req.query;
+      const payments = await prisma.payments.findMany({
+        where: { client_id: parseInt(client_id as string) },
+        orderBy: { created_at: 'desc' }
+      });
+      res.json(payments || []);
+    } catch (e) {
+      console.error(e);
+      res.json([]);
+    }
   });
 
   app.post("/api/payments", async (req, res) => {
@@ -365,23 +403,28 @@ async function startServer() {
   });
 
   app.get("/api/quotes", async (req, res) => {
-    const { client_id } = req.query;
-    const where = client_id ? { client_id: parseInt(client_id as string) } : {};
-    
-    const quotesList = await prisma.quotes.findMany({
-      where,
-      include: {
-        clients: true
-      },
-      orderBy: { created_at: 'desc' }
-    });
-    
-    const formatted = quotesList.map(q => ({
-      ...q,
-      client_name: q.clients?.name
-    }));
-    
-    res.json(formatted);
+    try {
+      const { client_id } = req.query;
+      const where = client_id ? { client_id: parseInt(client_id as string) } : {};
+      
+      const quotesList = await prisma.quotes.findMany({
+        where,
+        include: {
+          clients: true
+        },
+        orderBy: { created_at: 'desc' }
+      });
+      
+      const formatted = (quotesList || []).map(q => ({
+        ...q,
+        client_name: q.clients?.name
+      }));
+      
+      res.json(formatted);
+    } catch (e) {
+      console.error(e);
+      res.json([]);
+    }
   });
 
   app.post("/api/quotes", async (req, res) => {

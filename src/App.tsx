@@ -112,9 +112,15 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'dashboard') {
       fetch('/api/stats')
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error('API Error');
+          return res.json();
+        })
         .then(data => setStats(data))
-        .catch(err => console.error("Error fetching stats:", err));
+        .catch(err => {
+          console.error("Error fetching stats:", err);
+          setStats(MOCK_STATS);
+        });
     }
   }, [activeTab]);
 
@@ -430,10 +436,10 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
         <StatCard label="Orçamentos Pendentes" value={stats.pendingQuotes} trend={stats.pendingQuotesTrend} icon={<History />} color="primary" />
         <StatCard label="Orçamentos Aprovados" value={stats.approvedQuotes} trend={stats.approvedQuotesTrend} icon={<CheckSquare />} color="emerald" />
         <StatCard label="Total de Clientes" value={stats.totalClients} trend={stats.totalClientsTrend} icon={<Users />} color="blue" />
-        <StatCard label="Faturamento Mensal" value={`R$ ${stats.monthlyRevenue.toLocaleString()}`} trend={stats.monthlyRevenueTrend} icon={<Calculator />} color="emerald" />
+        <StatCard label="Faturamento Mensal" value={`R$ ${(stats.monthlyRevenue || 0).toLocaleString()}`} trend={stats.monthlyRevenueTrend} icon={<Calculator />} color="emerald" />
         <StatCard label="Em Produção" value={stats.inProduction} trend={stats.inProductionTrend} icon={<Construction />} color="yellow" />
-        <StatCard label="Total A Receber" value={`R$ ${stats.totalReceivable?.toLocaleString()}`} icon={<Clock />} color="blue" />
-        <StatCard label="Total Em Atraso" value={`R$ ${stats.totalOverdue?.toLocaleString()}`} icon={<Bell />} color="orange" />
+        <StatCard label="Total A Receber" value={`R$ ${(stats.totalReceivable || 0).toLocaleString()}`} icon={<Clock />} color="blue" />
+        <StatCard label="Total Em Atraso" value={`R$ ${(stats.totalOverdue || 0).toLocaleString()}`} icon={<Bell />} color="orange" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -901,10 +907,21 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
   const [newAppointment, setNewAppointment] = useState({ title: '', date: '', time: '', type: 'Visita' });
   const [paymentData, setPaymentData] = useState({ amount: '', date: '', installments: '1', description: '' });
 
-  const fetchData = () => {
-    fetch(`/api/clients/${clientId}`).then(r => r.json()).then(setClient);
-    fetch(`/api/quotes?client_id=${clientId}`).then(r => r.json()).then(setOrders);
-    fetch(`/api/payments?client_id=${clientId}`).then(r => r.json()).then(setPayments);
+   const fetchData = () => {
+    fetch(`/api/clients/${clientId}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Client not found');
+        return r.json();
+      })
+      .then(setClient)
+      .catch(err => {
+        console.error(err);
+        showToast("Erro ao carregar cliente", "error");
+        onBack();
+      });
+
+    fetch(`/api/quotes?client_id=${clientId}`).then(r => r.json()).then(setOrders).catch(() => setOrders([]));
+    fetch(`/api/payments?client_id=${clientId}`).then(r => r.json()).then(setPayments).catch(() => setPayments([]));
 
     // Mock appointments from localStorage
     const saved = localStorage.getItem(`appointments_${clientId}`);
