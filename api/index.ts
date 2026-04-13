@@ -490,13 +490,85 @@ app.use(express.json());
     res.json({ success: true });
   });
 
-  // Backup and Restore (Desativado em produção no Vercel pois não usa SQLite)
-  app.get("/api/backup", (req, res) => {
-    res.status(501).json({ error: "Backup local não disponível em produção" });
+  // Backup and Restore (Novo Sistema JSON Universal)
+  app.get("/api/backup", async (req, res) => {
+    try {
+      const [
+        clients, materials, services, quotes, quote_items, 
+        quote_services, cut_plans, description_templates, 
+        module_templates, supplies
+      ] = await Promise.all([
+        prisma.clients.findMany(),
+        prisma.materials.findMany(),
+        prisma.services.findMany(),
+        prisma.quotes.findMany(),
+        prisma.quote_items.findMany(),
+        prisma.quote_services.findMany(),
+        prisma.cut_plans.findMany(),
+        prisma.description_templates.findMany(),
+        prisma.module_templates.findMany(),
+        prisma.supplies.findMany()
+      ]);
+
+      const backupData = {
+        version: "1.0",
+        timestamp: new Date().toISOString(),
+        data: {
+          clients, materials, services, quotes, quote_items, 
+          quote_services, cut_plans, description_templates, 
+          module_templates, supplies
+        }
+      };
+
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename=backup_marmoraria_${new Date().toISOString().split('T')[0]}.json`);
+      res.send(JSON.stringify(backupData, null, 2));
+    } catch (error) {
+      console.error("Backup error:", error);
+      res.status(500).json({ error: "Falha ao gerar backup" });
+    }
   });
 
   app.post("/api/restore", upload.single('backup'), async (req, res) => {
-    res.status(501).json({ error: "Restore local não disponível em produção" });
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
+
+    try {
+      const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+      const backup = JSON.parse(fileContent);
+      const { data } = backup;
+
+      await prisma.$transaction(async (tx) => {
+        // 1. Limpar dados existentes (em ordem de dependência)
+        await tx.quote_services.deleteMany();
+        await tx.quote_items.deleteMany();
+        await tx.quotes.deleteMany();
+        await tx.clients.deleteMany();
+        await tx.materials.deleteMany();
+        await tx.services.deleteMany();
+        await tx.cut_plans.deleteMany();
+        await tx.description_templates.deleteMany();
+        await tx.module_templates.deleteMany();
+        await tx.supplies.deleteMany();
+
+        // 2. Inserir dados do backup
+        if (data.clients?.length) await tx.clients.createMany({ data: data.clients });
+        if (data.materials?.length) await tx.materials.createMany({ data: data.materials });
+        if (data.services?.length) await tx.services.createMany({ data: data.services });
+        if (data.quotes?.length) await tx.quotes.createMany({ data: data.quotes });
+        if (data.quote_items?.length) await tx.quote_items.createMany({ data: data.quote_items });
+        if (data.quote_services?.length) await tx.quote_services.createMany({ data: data.quote_services });
+        if (data.cut_plans?.length) await tx.cut_plans.createMany({ data: data.cut_plans });
+        if (data.description_templates?.length) await tx.description_templates.createMany({ data: data.description_templates });
+        if (data.module_templates?.length) await tx.module_templates.createMany({ data: data.module_templates });
+        if (data.supplies?.length) await tx.supplies.createMany({ data: data.supplies });
+      });
+
+      fs.unlinkSync(req.file.path);
+      res.json({ success: true, message: "Restauração concluída com sucesso!" });
+    } catch (error) {
+      console.error("Restore error:", error);
+      res.status(500).json({ error: "Falha ao processar arquivo de backup" });
+    }
   });
 
   // Export for Vercel

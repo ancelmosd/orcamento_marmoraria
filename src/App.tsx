@@ -2655,14 +2655,14 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
               <Download className="w-6 h-6 group-hover:scale-110 transition-transform" />
               <div className="text-left">
                 <p className="text-sm">Fazer Backup</p>
-                <p className="text-[10px] font-normal opacity-70">Baixar arquivo do banco de dados</p>
+                <p className="text-[10px] font-normal opacity-70">Baixar arquivo de dados (.json)</p>
               </div>
             </button>
 
             <div className="relative">
               <input 
                 type="file" 
-                accept=".db"
+                accept=".json"
                 onChange={handleRestore}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               />
@@ -2670,7 +2670,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 <Upload className="w-6 h-6 group-hover:scale-110 transition-transform" />
                 <div className="text-left">
                   <p className="text-sm">Restaurar Backup</p>
-                  <p className="text-[10px] font-normal opacity-70">Substituir dados por um arquivo .db</p>
+                  <p className="text-[10px] font-normal opacity-70">Substituir dados por um arquivo .json</p>
                 </div>
               </div>
             </div>
