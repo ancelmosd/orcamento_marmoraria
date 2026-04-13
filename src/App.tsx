@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Package, 
-  Calculator, 
-  History, 
-  Settings, 
-  Bell, 
-  Plus, 
-  Search, 
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  Calculator,
+  History,
+  Settings,
+  Bell,
+  Plus,
+  Search,
   Check,
-  MoreVertical, 
+  MoreVertical,
   Download,
   FileDown,
   Bolt,
@@ -29,7 +29,9 @@ import {
   Save,
   FolderOpen,
   Database,
-  Upload
+  Upload,
+  Camera,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
@@ -41,16 +43,16 @@ import { generateQuotePDF } from './utils/pdfGenerator';
 
 // Mock data for initial render
 const MOCK_STATS: DashboardStats = {
-  pendingQuotes: 24,
-  pendingQuotesTrend: 12,
-  approvedQuotes: 18,
-  approvedQuotesTrend: 5,
-  totalClients: 1280,
-  totalClientsTrend: 5,
-  monthlyRevenue: 45200,
-  monthlyRevenueTrend: 8.5,
-  inProduction: 15,
-  inProductionTrend: -2
+  pendingQuotes: 0,
+  pendingQuotesTrend: 0,
+  approvedQuotes: 0,
+  approvedQuotesTrend: 0,
+  totalClients: 0,
+  totalClientsTrend: 0,
+  monthlyRevenue: 0,
+  monthlyRevenueTrend: 0,
+  inProduction: 0,
+  inProductionTrend: 0
 };
 
 const EDGE_TYPES = ['Nenhum', '45 Graus', 'Reto', 'Boleado', 'Meia Cana'];
@@ -64,17 +66,39 @@ const normalizeSearchText = (value: string | number | null | undefined) =>
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [stats, setStats] = useState<DashboardStats>(MOCK_STATS);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [clientAction, setClientAction] = useState<string | null>(null);
   const [editQuoteId, setEditQuoteId] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [profileImage, setProfileImage] = useState<string>(localStorage.getItem('user_profile_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80');
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (window.innerWidth < 1024) { // Ajustado para fechar em tablets também se necessário, ou 768 para apenas mobile
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const handleProfileImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setProfileImage(base64String);
+        localStorage.setItem('user_profile_image', base64String);
+        showToast("Foto de perfil atualizada!");
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   useEffect(() => {
@@ -117,12 +141,12 @@ export default function App() {
       case 'clients': return <ClientsView searchTerm={globalSearch} initialAction={clientAction} onActionComplete={() => setClientAction(null)} showToast={showToast} />;
       case 'materials': return <MaterialsView searchTerm={globalSearch} showToast={showToast} />;
       case 'quotes': return (
-        <QuotesView 
-          editId={editQuoteId} 
+        <QuotesView
+          editId={editQuoteId}
           onSave={() => {
             setEditQuoteId(null);
             setActiveTab('history');
-          }} 
+          }}
           onCancel={() => {
             setEditQuoteId(null);
             setActiveTab('history');
@@ -134,12 +158,12 @@ export default function App() {
       case 'quick-quote': return <QuickQuoteView showToast={showToast} />;
       case 'services': return <ServicesView searchTerm={globalSearch} showToast={showToast} />;
       case 'history': return (
-        <HistoryView 
+        <HistoryView
           searchTerm={globalSearch}
           onEdit={(id) => {
             setEditQuoteId(id);
             setActiveTab('quotes');
-          }} 
+          }}
           showToast={showToast}
         />
       );
@@ -152,7 +176,7 @@ export default function App() {
     <div className="flex h-screen bg-background-dark text-slate-100 overflow-hidden">
       {/* Sidebar */}
       <aside className={`${isSidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0 md:w-20'} fixed md:relative h-full border-r border-border-dark bg-secondary-dark transition-all duration-300 flex flex-col z-50`}>
-        <div className="p-6 flex items-center justify-between gap-3 text-primary">
+        <div className="p-4 flex items-center justify-between gap-3 text-primary">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 p-2 rounded-lg">
               <Layers className="w-6 h-6" />
@@ -164,22 +188,19 @@ export default function App() {
           </button>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 mt-4">
-          <NavItem icon={<LayoutDashboard />} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Users />} label="Clientes" active={activeTab === 'clients'} onClick={() => setActiveTab('clients')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Bolt />} label="Orçamento Rápido" active={activeTab === 'quick-quote'} onClick={() => setActiveTab('quick-quote')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Calculator />} label="Orçamentos" active={activeTab === 'quotes'} onClick={() => {
-            setEditQuoteId(null);
-            setActiveTab('quotes');
-          }} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => setActiveTab('cut-plan')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<History />} label="Histórico" active={activeTab === 'history'} onClick={() => setActiveTab('history')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Package />} label="Materiais" active={activeTab === 'materials'} onClick={() => setActiveTab('materials')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => setActiveTab('services')} collapsed={!isSidebarOpen} />
-        </nav>
+        <div className="flex-1 overflow-y-auto py-2 space-y-1 px-3 scrollbar-hide">
+          <NavItem icon={<LayoutDashboard />} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Users />} label="Clientes" active={activeTab === 'clients'} onClick={() => handleTabChange('clients')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Package />} label="Estoque" active={activeTab === 'materials'} onClick={() => handleTabChange('materials')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => handleTabChange('services')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Calculator />} label="Calculadora" active={activeTab === 'quotes'} onClick={() => handleTabChange('quotes')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Zap />} label="Orçamento Rápido" active={activeTab === 'quick-quote'} onClick={() => handleTabChange('quick-quote')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<History />} label="Histórico" active={activeTab === 'history'} onClick={() => handleTabChange('history')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => handleTabChange('cut-plan')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Settings />} label="Configurações" active={activeTab === 'settings'} onClick={() => handleTabChange('settings')} collapsed={!isSidebarOpen} />
+        </div>
 
         <div className="p-4 border-t border-border-dark">
-          <NavItem icon={<Settings />} label="Configurações" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} collapsed={!isSidebarOpen} />
           <div className="mt-4 flex items-center gap-3 px-2">
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">AS</div>
             {isSidebarOpen && (
@@ -195,7 +216,7 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Header */}
-        <header className="h-16 border-b border-border-dark bg-secondary-dark/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40">
+        <header className="h-10 border-b border-border-dark bg-secondary-dark/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
               <Menu className="w-5 h-5" />
@@ -205,15 +226,15 @@ export default function App() {
           <div className="flex items-center gap-4">
             <div className="relative hidden md:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-              <input 
+              <input
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
-                className="bg-background-dark border border-border-dark rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary outline-none w-64" 
-                placeholder="Buscar na tela atual..." 
+                className="bg-background-dark border border-border-dark rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary outline-none w-64"
+                placeholder="Buscar na tela atual..."
               />
             </div>
             <div className="relative">
-              <button 
+              <button
                 className="p-2 rounded-full hover:bg-white/5 relative"
                 onClick={() => setShowNotifications(!showNotifications)}
               >
@@ -222,10 +243,10 @@ export default function App() {
                   <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-secondary-dark"></span>
                 )}
               </button>
-              
+
               <AnimatePresence>
                 {showNotifications && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -247,8 +268,8 @@ export default function App() {
                       ) : (
                         <div className="divide-y divide-border-dark">
                           {notifications.map(n => (
-                            <div 
-                              key={n.id} 
+                            <div
+                              key={n.id}
                               className="p-4 hover:bg-white/5 cursor-pointer flex flex-col gap-1 transition-colors"
                               onClick={() => {
                                 setEditQuoteId(n.id);
@@ -276,8 +297,31 @@ export default function App() {
                 )}
               </AnimatePresence>
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-700 overflow-hidden">
-              <img src="https://picsum.photos/seed/admin/100/100" alt="Avatar" referrerPolicy="no-referrer" />
+
+            <div className="flex items-center gap-3 border-l border-border-dark pl-4">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-white">Administrador</p>
+                <p className="text-[10px] text-slate-500">Marmoraria Online</p>
+              </div>
+              <div className="relative group cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                  onChange={handleProfileImageUpload}
+                  title="Mudar foto de perfil"
+                />
+                <div className="w-10 h-10 rounded-xl border-2 border-primary/20 p-0.5 group-hover:border-primary transition-all">
+                  <img
+                    src={profileImage}
+                    alt="Perfil"
+                    className="w-full h-full rounded-lg object-cover"
+                  />
+                </div>
+                <div className="absolute -bottom-1 -right-1 bg-primary text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 scale-75 group-hover:scale-100 shadow-lg shadow-primary/40">
+                  <Camera size={12} />
+                </div>
+              </div>
             </div>
           </div>
         </header>
@@ -303,11 +347,10 @@ export default function App() {
               initial={{ opacity: 0, y: 50, x: '-50%' }}
               animate={{ opacity: 1, y: 0, x: '-50%' }}
               exit={{ opacity: 0, y: 20, x: '-50%' }}
-              className={`fixed bottom-8 left-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-3 border ${
-                toast.type === 'success' 
-                  ? 'bg-emerald-500 text-white border-emerald-400' 
-                  : 'bg-red-500 text-white border-red-400'
-              }`}
+              className={`fixed bottom-8 left-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-3 border ${toast.type === 'success'
+                ? 'bg-emerald-500 text-white border-emerald-400'
+                : 'bg-red-500 text-white border-red-400'
+                }`}
             >
               {toast.type === 'success' ? <CheckSquare size={20} /> : <X size={20} />}
               {toast.message}
@@ -321,13 +364,12 @@ export default function App() {
 
 function NavItem({ icon, label, active, onClick, collapsed }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, collapsed: boolean }) {
   return (
-    <button 
+    <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
-        active 
-          ? 'bg-primary text-white shadow-lg shadow-primary/20' 
-          : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
-      }`}
+      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all group ${active
+        ? 'bg-primary text-white shadow-lg shadow-primary/20'
+        : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+        }`}
     >
       <span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-primary'} transition-colors`}>
         {React.cloneElement(icon as React.ReactElement, { size: 20 })}
@@ -347,16 +389,14 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
     fetch('/api/materials')
       .then(res => res.json())
       .then(data => {
-        // Sort by quantity ascending to show low stock first
         const sorted = [...data].sort((a, b) => a.quantity - b.quantity);
-        setMaterials(sorted.slice(0, 3)); // Show top 3
+        setMaterials(sorted.slice(0, 3));
       })
       .catch(err => console.error("Error fetching materials for dashboard:", err));
 
     fetch('/api/quotes')
       .then(res => res.json())
       .then(data => {
-        // Sort by date descending and take 5
         const sorted = [...data].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setQuotes(sorted.slice(0, 5));
       })
@@ -388,7 +428,7 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
             <ShortcutButton icon={<Package />} label="Entrada de Material" sub="Atualizar estoque" onClick={() => onAction('material-entry')} />
             <ShortcutButton icon={<Calculator />} label="Novo Orçamento" sub="Gerar calculadora" onClick={() => onAction('new-quote')} />
           </div>
-          
+
           <div className="p-6 rounded-xl bg-primary/5 border border-primary/10">
             <h3 className="font-bold mb-4 flex items-center gap-2">
               <Info className="text-primary w-4 h-4" /> Status do Estoque
@@ -397,11 +437,11 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
               {materials.length === 0 ? (
                 <p className="text-xs text-slate-500">Nenhum material cadastrado.</p>
               ) : materials.map(m => (
-                <StockProgress 
-                  key={m.id} 
-                  label={m.name} 
-                  value={Math.min(100, (m.quantity / 50) * 100)} // Assuming 50m2 is "full" for the bar
-                  amount={`${m.quantity} m²`} 
+                <StockProgress
+                  key={m.id}
+                  label={m.name}
+                  value={Math.min(100, (m.quantity / 50) * 100)}
+                  amount={`${m.quantity} m²`}
                   color={m.quantity < 10 ? 'orange' : 'primary'}
                 />
               ))}
@@ -416,36 +456,36 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
             </h2>
             <button onClick={() => onAction('view-history')} className="text-primary text-sm font-bold hover:underline">Ver todos</button>
           </div>
-            <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
-              <table className="w-full text-left min-w-[600px]">
-                <thead className="bg-white/5">
+          <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
+            <table className="w-full text-left min-w-[600px]">
+              <thead className="bg-white/5">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Cliente</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Data</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Valor</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Status</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-dark">
+                {quotes.length === 0 ? (
                   <tr>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Cliente</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Data</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Valor</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Status</th>
-                    <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Ações</th>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500 text-sm">Nenhum orçamento recente.</td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border-dark">
-                  {quotes.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500 text-sm">Nenhum orçamento recente.</td>
-                    </tr>
-                  ) : quotes.map(q => (
-                    <TableRow 
-                      key={q.id}
-                      client={q.client_name} 
-                      project={q.project_name} 
-                      date={new Date(q.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} 
-                      value={`R$ ${q.total_value.toLocaleString()}`} 
-                      status={q.status} 
-                      onEdit={() => onAction(`edit-quote-${q.id}`)} 
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ) : quotes.map(q => (
+                  <TableRow
+                    key={q.id}
+                    client={q.client_name}
+                    project={q.project_name}
+                    date={new Date(q.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                    value={`R$ ${q.total_value.toLocaleString()}`}
+                    status={q.status}
+                    onEdit={() => onAction(`edit-quote-${q.id}`)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -460,7 +500,7 @@ function StatCard({ label, value, trend, icon, color }: { label: string, value: 
     orange: 'text-orange-500 bg-orange-500/10',
     yellow: 'text-yellow-400 bg-yellow-400/10'
   };
-  
+
   const isPositive = trend > 0;
   const isNegative = trend < 0;
   const trendText = trend === 0 ? 'Estável' : `${isPositive ? '+' : ''}${trend}%`;
@@ -486,7 +526,7 @@ function StatCard({ label, value, trend, icon, color }: { label: string, value: 
 
 function ShortcutButton({ icon, label, sub, onClick }: any) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className="w-full flex items-center gap-4 p-4 rounded-xl bg-secondary-dark border border-border-dark hover:border-primary transition-all text-left group"
     >
@@ -526,7 +566,7 @@ function TableRow({ client, project, date, value, status, onEdit }: any) {
     'Rascunho': 'bg-slate-500/10 text-slate-400'
   };
   return (
-    <tr 
+    <tr
       className="hover:bg-white/5 transition-colors group cursor-pointer"
       onClick={onEdit}
     >
@@ -552,7 +592,7 @@ function TableRow({ client, project, date, value, status, onEdit }: any) {
   );
 }
 
-// --- Placeholder Views (To be implemented in next steps) ---
+// --- Placeholder Views ---
 
 function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }: { searchTerm: string, initialAction?: string | null, onActionComplete?: () => void, showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [clients, setClients] = useState<Client[]>([]);
@@ -594,13 +634,13 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
     e.preventDefault();
     const url = editingId ? `/api/clients/${editingId}` : '/api/clients';
     const method = editingId ? 'PUT' : 'POST';
-    
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
     });
-    
+
     if (res.ok) {
       showToast(editingId ? "Cliente atualizado!" : "Cliente cadastrado!");
       setFormData({ name: '', document: '', phone: '', address: '' });
@@ -648,7 +688,7 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
           <h1 className="text-2xl md:text-3xl font-black tracking-tight">Gestão de Clientes</h1>
           <p className="text-slate-500 text-sm">Visualize e gerencie sua base de contatos.</p>
         </div>
-        <button 
+        <button
           onClick={() => {
             if (showForm) {
               setEditingId(null);
@@ -665,7 +705,7 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
 
       <AnimatePresence>
         {showForm && (
-          <motion.div 
+          <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -677,39 +717,39 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Nome Completo</label>
-                <input 
+                <input
                   required
                   value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Ex: Maria Oliveira" 
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Maria Oliveira"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">CPF / CNPJ</label>
-                <input 
+                <input
                   value={formData.document}
-                  onChange={e => setFormData({...formData, document: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="000.000.000-00" 
+                  onChange={e => setFormData({ ...formData, document: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="000.000.000-00"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Telefone</label>
-                <input 
+                <input
                   value={formData.phone}
-                  onChange={e => setFormData({...formData, phone: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="(00) 00000-0000" 
+                  onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="(00) 00000-0000"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Endereço</label>
-                <input 
+                <input
                   value={formData.address}
-                  onChange={e => setFormData({...formData, address: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Rua, Número, Bairro" 
+                  onChange={e => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Rua, Número, Bairro"
                 />
               </div>
               <div className="md:col-span-2 flex justify-end pt-4">
@@ -747,22 +787,22 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
                 <td className="px-6 py-4 text-slate-400 text-sm">{client.document}</td>
                 <td className="px-6 py-4 text-slate-400 text-sm">{client.phone}</td>
                 <td className="px-6 py-4 relative">
-                  <button 
+                  <button
                     onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
                     className="p-2 text-slate-500 hover:text-primary transition-colors"
                   >
                     <MoreVertical size={18} />
                   </button>
-                  
+
                   {openMenuId === client.id && (
                     <div className="absolute right-6 top-12 w-32 bg-secondary-dark border border-border-dark rounded-lg shadow-xl z-50 overflow-hidden">
-                      <button 
+                      <button
                         onClick={() => handleEdit(client)}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-white/5 transition-colors flex items-center gap-2"
                       >
                         <Settings size={14} /> Editar
                       </button>
-                      <button 
+                      <button
                         onClick={() => setClientToDelete(client.id)}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-red-500/10 text-red-400 transition-colors flex items-center gap-2"
                       >
@@ -781,7 +821,7 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
       <AnimatePresence>
         {clientToDelete && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -797,13 +837,13 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
                 Esta ação não pode ser desfeita. Todos os dados deste cliente serão removidos permanentemente.
               </p>
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setClientToDelete(null)}
                   className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   onClick={() => handleDelete(clientToDelete)}
                   className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-xl text-sm font-bold transition-colors"
                 >
@@ -847,7 +887,7 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
     e.preventDefault();
     const url = editingId ? `/api/materials/${editingId}` : '/api/materials';
     const method = editingId ? 'PUT' : 'POST';
-    
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -857,7 +897,7 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
         quantity: parseFloat(formData.quantity)
       })
     });
-    
+
     if (res.ok) {
       showToast(editingId ? "Material atualizado!" : "Material cadastrado!");
       setFormData({ name: '', price: '', quantity: '', description: '' });
@@ -921,7 +961,7 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
           <h1 className="text-2xl md:text-3xl font-black tracking-tight">Estoque de Pedras</h1>
           <p className="text-slate-500 text-sm">Controle de chapas e precificação por m².</p>
         </div>
-        <button 
+        <button
           onClick={() => {
             if (showForm) {
               setEditingId(null);
@@ -938,7 +978,7 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
 
       <AnimatePresence>
         {showForm && (
-          <motion.div 
+          <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -950,45 +990,45 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Nome do Material</label>
-                <input 
+                <input
                   required
                   value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Ex: Granito Preto Absoluto" 
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Granito Preto Absoluto"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Preço por m² (R$)</label>
-                <input 
+                <input
                   required
                   type="number"
                   step="0.01"
                   value={formData.price}
-                  onChange={e => setFormData({...formData, price: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="0.00" 
+                  onChange={e => setFormData({ ...formData, price: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0.00"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Quantidade Inicial (m²)</label>
-                <input 
+                <input
                   required
                   type="number"
                   step="0.01"
                   value={formData.quantity}
-                  onChange={e => setFormData({...formData, quantity: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="0.00" 
+                  onChange={e => setFormData({ ...formData, quantity: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0.00"
                 />
               </div>
               <div className="md:col-span-3 space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Descrição</label>
-                <input 
+                <input
                   value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Detalhes do material..." 
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Detalhes do material..."
                 />
               </div>
               <div className="md:col-span-3 flex justify-end pt-4">
@@ -1013,14 +1053,14 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
         ) : filteredMaterials.map(m => (
           <div key={m.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group">
             <div className="absolute top-4 right-4 flex gap-2 transition-opacity">
-              <button 
+              <button
                 onClick={() => handleEdit(m)}
                 className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
                 title="Editar"
               >
                 <Settings size={14} />
               </button>
-              <button 
+              <button
                 onClick={() => handleDelete(m.id)}
                 className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400"
                 title="Excluir"
@@ -1038,7 +1078,7 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
                 <span className="text-xs text-slate-500 uppercase font-bold">Estoque</span>
                 <span className={`font-bold ${m.quantity < 5 ? 'text-orange-500' : 'text-white'}`}>{m.quantity} m²</span>
               </div>
-              <button 
+              <button
                 onClick={() => setStockEntryMaterial(m)}
                 className="p-2 bg-white/5 rounded-lg hover:bg-primary hover:text-white transition-all"
               >
@@ -1053,7 +1093,7 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
       <AnimatePresence>
         {stockEntryMaterial && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -1072,7 +1112,7 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
               <form onSubmit={handleAddStockSubmit} className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quantidade a Adicionar (m²)</label>
-                  <input 
+                  <input
                     autoFocus
                     required
                     type="number"
@@ -1092,14 +1132,14 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setStockEntryMaterial(null)}
                     className="flex-1 py-4 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
                   >
@@ -1144,7 +1184,7 @@ function ServicesView({ searchTerm, showToast }: { searchTerm: string, showToast
     e.preventDefault();
     const url = editingId ? `/api/services/${editingId}` : '/api/services';
     const method = editingId ? 'PUT' : 'POST';
-    
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -1154,7 +1194,7 @@ function ServicesView({ searchTerm, showToast }: { searchTerm: string, showToast
         minutes_per_meter: parseFloat(formData.minutes_per_meter) || 0
       })
     });
-    
+
     if (res.ok) {
       showToast(editingId ? "Serviço atualizado!" : "Serviço cadastrado!");
       setFormData({ name: '', price: '', description: '', minutes_per_meter: '' });
@@ -1198,7 +1238,7 @@ function ServicesView({ searchTerm, showToast }: { searchTerm: string, showToast
           <h1 className="text-2xl md:text-3xl font-black tracking-tight">Catálogo de Serviços</h1>
           <p className="text-slate-500 text-sm">Gerencie os serviços e acabamentos oferecidos.</p>
         </div>
-        <button 
+        <button
           onClick={() => {
             if (showForm) {
               setEditingId(null);
@@ -1215,7 +1255,7 @@ function ServicesView({ searchTerm, showToast }: { searchTerm: string, showToast
 
       <AnimatePresence>
         {showForm && (
-          <motion.div 
+          <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -1227,19 +1267,19 @@ function ServicesView({ searchTerm, showToast }: { searchTerm: string, showToast
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Nome do Serviço</label>
-                <input 
+                <input
                   required
                   value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Ex: Meia Esquadria 45°" 
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Meia Esquadria 45°"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
-                <select 
+                <select
                   value={formData.category}
-                  onChange={e => setFormData({...formData, category: e.target.value})}
+                  onChange={e => setFormData({ ...formData, category: e.target.value })}
                   className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="finish">Acabamento</option>
@@ -1249,34 +1289,34 @@ function ServicesView({ searchTerm, showToast }: { searchTerm: string, showToast
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Preço Base (R$)</label>
-                <input 
+                <input
                   required
                   type="number"
                   step="0.01"
                   value={formData.price}
-                  onChange={e => setFormData({...formData, price: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="0.00" 
+                  onChange={e => setFormData({ ...formData, price: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0.00"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Minutos por Metro (min/m)</label>
-                <input 
+                <input
                   type="number"
                   step="1"
                   value={formData.minutes_per_meter}
-                  onChange={e => setFormData({...formData, minutes_per_meter: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Ex: 15" 
+                  onChange={e => setFormData({ ...formData, minutes_per_meter: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: 15"
                 />
               </div>
               <div className="md:col-span-1 space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Descrição</label>
-                <input 
+                <input
                   value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Detalhes sobre o serviço..." 
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Detalhes sobre o serviço..."
                 />
               </div>
               <div className="md:col-span-2 flex justify-end pt-4">
@@ -1299,14 +1339,14 @@ function ServicesView({ searchTerm, showToast }: { searchTerm: string, showToast
               {filteredServices.filter(s => s.category === cat).map(s => (
                 <div key={s.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group">
                   <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
+                    <button
                       onClick={() => handleEdit(s)}
                       className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors"
                       title="Editar"
                     >
                       <Settings size={14} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDelete(s.id)}
                       className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors"
                       title="Excluir"
@@ -1343,7 +1383,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   const [clients, setClients] = useState<Client[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [servicesList, setServicesList] = useState<Service[]>([]);
-  const [descriptionTemplates, setDescriptionTemplates] = useState<{id: number, text: string}[]>([]);
+  const [descriptionTemplates, setDescriptionTemplates] = useState<{ id: number, text: string }[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [projectName, setProjectName] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
@@ -1380,7 +1420,6 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
           })));
         });
     } else {
-      // Reset form if not editing
       setSelectedClientId('');
       setProjectName('');
       setDeliveryDate('');
@@ -1406,15 +1445,14 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   const updateQuoteService = (index: number, field: string, value: any) => {
     const newServices = [...quoteServices];
     const updatedService = { ...newServices[index], [field]: value };
-    
-    // If serviceId changed, update unitPrice automatically
+
     if (field === 'serviceId' && value) {
       const service = servicesList.find(s => s.id?.toString() === value.toString());
       if (service) {
         updatedService.unitPrice = service.price;
       }
     }
-    
+
     newServices[index] = updatedService;
     setQuoteServices(newServices);
   };
@@ -1422,7 +1460,6 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   const calculateSubtotal = (item: any) => {
     const material = materials.find(m => m.id?.toString() === item.materialId?.toString());
     if (!material) return 0;
-    // length and width are in mm, price is per m2
     return (item.length * item.width * item.quantity * material.price) / 1000000;
   };
 
@@ -1433,20 +1470,16 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
   const totalMaterials = quoteItems.reduce((acc, item) => acc + calculateSubtotal(item), 0);
   const totalServices = quoteServices.reduce((acc, item) => acc + calculateServiceSubtotal(item), 0);
   const totalArea = quoteItems.reduce((acc, item) => acc + (item.length * item.width * item.quantity) / 1000000, 0);
-  
+
   const totalMinutes = quoteServices.reduce((acc, item) => {
     const service = servicesList.find(s => s.id?.toString() === item.serviceId?.toString());
     if (!service) return acc;
-    // minutes_per_meter * quantity (which is meters)
     return acc + (item.quantity * (service.minutes_per_meter || 0));
   }, 0);
 
   const totalHours = Math.floor(totalMinutes / 60);
   const remainingMinutes = Math.round(totalMinutes % 60);
-  
-  // We'll keep the area-based labor as a "Base Labor" if desired, 
-  // but explicit services are usually preferred now.
-  // For now, let's make totalValue = materials + explicit services
+
   const totalValue = totalMaterials + totalServices;
 
   const handleSaveQuote = async () => {
@@ -1534,19 +1567,19 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           {editId && (
             <>
-              <button 
+              <button
                 onClick={handleSaveQuote}
                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-bold bg-primary text-white shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
               >
                 <Plus size={18} className="rotate-0" /> Atualizar
               </button>
-              <button 
+              <button
                 onClick={handleDeleteQuote}
                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
               >
                 <X size={18} /> Excluir
               </button>
-              <button 
+              <button
                 onClick={onCancel}
                 className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg font-bold border border-border-dark hover:bg-white/5 transition-colors flex items-center justify-center gap-2"
               >
@@ -1562,7 +1595,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
           <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
             <h3 className="font-bold flex items-center gap-2"><Users className="w-5 h-5 text-primary" /> Dados do Cliente</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <select 
+              <select
                 value={selectedClientId}
                 onChange={e => setSelectedClientId(e.target.value)}
                 className="bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary text-sm"
@@ -1570,18 +1603,18 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                 <option value="">Selecionar Cliente</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <input 
+              <input
                 value={projectName}
                 onChange={e => setProjectName(e.target.value)}
-                className="bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary text-sm" 
-                placeholder="Projeto / Referência (Ex: Cozinha Gourmet)" 
+                className="bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary text-sm"
+                placeholder="Projeto / Referência (Ex: Cozinha Gourmet)"
               />
-              <input 
+              <input
                 type="date"
                 value={deliveryDate}
                 onChange={e => setDeliveryDate(e.target.value)}
-                className="bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary text-sm text-slate-400" 
-                placeholder="Data de Entrega" 
+                className="bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary text-sm text-slate-400"
+                placeholder="Data de Entrega"
               />
             </div>
           </div>
@@ -1589,20 +1622,20 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
           <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="font-bold flex items-center gap-2"><Layers className="w-5 h-5 text-primary" /> Materiais e Medidas</h3>
-              <button 
+              <button
                 onClick={addItem}
                 className="text-primary text-sm font-bold flex items-center gap-1 hover:underline"
               >
                 <Plus size={16} /> Adicionar Item
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {quoteItems.map((item, index) => (
                 <div key={index} className="p-4 rounded-lg bg-background-dark border border-border-dark grid grid-cols-1 md:grid-cols-6 gap-4 items-end relative group">
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Material</label>
-                    <select 
+                    <select
                       value={item.materialId}
                       onChange={e => updateItem(index, 'materialId', e.target.value)}
                       className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
@@ -1613,39 +1646,39 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                   </div>
                   <div className="md:col-span-4 space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Descrição / Peça</label>
-                    <input 
+                    <input
                       list="description-templates"
                       value={item.description || ''}
                       onChange={e => updateItem(index, 'description', e.target.value)}
-                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
-                      placeholder="Ex: Bancada Pia, Rodapé, etc." 
+                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
+                      placeholder="Ex: Bancada Pia, Rodapé, etc."
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Prof. (mm)</label>
-                    <input 
+                    <input
                       type="number" step="1"
                       value={item.length}
                       onChange={e => updateItem(index, 'length', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
+                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Larg. (mm)</label>
-                    <input 
+                    <input
                       type="number" step="1"
                       value={item.width}
                       onChange={e => updateItem(index, 'width', parseFloat(e.target.value) || 0)}
-                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
+                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase">Qtd</label>
-                    <input 
+                    <input
                       type="number"
                       value={item.quantity}
                       onChange={e => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
-                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
+                      className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1655,7 +1688,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                     </div>
                   </div>
                   {quoteItems.length > 1 && (
-                    <button 
+                    <button
                       onClick={() => setQuoteItems(quoteItems.filter((_, i) => i !== index))}
                       className="absolute -right-2 -top-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
@@ -1669,14 +1702,14 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
           <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="font-bold flex items-center gap-2"><Construction className="w-5 h-5 text-primary" /> Serviços e Acabamentos</h3>
-              <button 
+              <button
                 onClick={addQuoteService}
                 className="text-primary text-sm font-bold flex items-center gap-1 hover:underline"
               >
                 <Plus size={16} /> Adicionar Serviço
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {quoteServices.length === 0 ? (
                 <div className="text-center py-8 border border-dashed border-border-dark rounded-xl text-slate-500 text-sm">
@@ -1687,7 +1720,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                   <div key={index} className="p-4 rounded-lg bg-background-dark border border-border-dark grid grid-cols-1 md:grid-cols-6 gap-4 items-end relative group">
                     <div className="md:col-span-3 space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase">Serviço</label>
-                      <select 
+                      <select
                         value={item.serviceId}
                         onChange={e => updateQuoteService(index, 'serviceId', e.target.value)}
                         className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
@@ -1698,30 +1731,30 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                     </div>
                     <div className="md:col-span-3 space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase">Descrição / Detalhe</label>
-                      <input 
+                      <input
                         list="description-templates"
                         value={item.description || ''}
                         onChange={e => updateQuoteService(index, 'description', e.target.value)}
-                        className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
-                        placeholder="Ex: Acabamento boleado, Instalação inclusa..." 
+                        className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
+                        placeholder="Ex: Acabamento boleado, Instalação inclusa..."
                       />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase">Qtd</label>
-                      <input 
+                      <input
                         type="number"
                         value={item.quantity}
                         onChange={e => updateQuoteService(index, 'quantity', parseFloat(e.target.value) || 0)}
-                        className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
+                        className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase">Preço Unit.</label>
-                      <input 
+                      <input
                         type="number" step="0.01"
                         value={item.unitPrice}
                         onChange={e => updateQuoteService(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                        className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm" 
+                        className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1730,7 +1763,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
                         R$ {calculateServiceSubtotal(item).toLocaleString()}
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setQuoteServices(quoteServices.filter((_, i) => i !== index))}
                       className="absolute -right-2 -top-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
@@ -1763,7 +1796,7 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <button 
+              <button
                 onClick={handleSaveQuote}
                 className="py-3 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
               >
@@ -1888,18 +1921,17 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
         <p className="text-slate-500">Visualize e gerencie todos os orçamentos gerados.</p>
       </div>
 
-      {/* Mobile View: Cards */}
       <div className="grid grid-cols-1 gap-4 md:hidden">
         {loading ? (
           <p className="text-center py-8 text-slate-500">Carregando...</p>
         ) : quotes.length === 0 ? (
           <p className="text-center py-8 text-slate-500">Nenhum orçamento encontrado.</p>
         ) : filteredQuotes.length === 0 ? (
-          <p className="text-center py-8 text-slate-500">Nenhum orÃ§amento encontrado para essa busca.</p>
+          <p className="text-center py-8 text-slate-500">Nenhum orçamento encontrado para essa busca.</p>
         ) : (
           filteredQuotes.map(quote => (
-            <div 
-              key={quote.id} 
+            <div
+              key={quote.id}
               className="bg-secondary-dark p-4 rounded-xl border border-border-dark space-y-3"
               onClick={() => onEdit(quote.id)}
             >
@@ -1919,7 +1951,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                 <span className="text-xs text-slate-500">{new Date(quote.created_at).toLocaleDateString('pt-BR')}</span>
               </div>
               <div className="flex gap-2 pt-2" onClick={e => e.stopPropagation()}>
-                <select 
+                <select
                   value={quote.status}
                   onChange={(e) => updateStatus(quote.id, e.target.value)}
                   className="flex-1 bg-white/5 border border-border-dark rounded-lg px-2 py-2 text-[10px] font-bold uppercase outline-none"
@@ -1930,7 +1962,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                   <option value="Entregue">Entregue</option>
                   <option value="Cancelado">Cancelado</option>
                 </select>
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     fetchQuoteDetails(quote.id);
@@ -1939,7 +1971,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                 >
                   <Info size={16} />
                 </button>
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setQuoteToDelete(quote.id);
@@ -1954,7 +1986,6 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
         )}
       </div>
 
-      {/* Desktop View: Table */}
       <div className="hidden md:block bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
@@ -1980,12 +2011,12 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
               </tr>
             ) : filteredQuotes.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">Nenhum orÃ§amento encontrado para essa busca.</td>
+                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">Nenhum orçamento encontrado para essa busca.</td>
               </tr>
             ) : (
               filteredQuotes.map((quote) => (
-                <tr 
-                  key={quote.id} 
+                <tr
+                  key={quote.id}
                   className="hover:bg-white/5 transition-colors group cursor-pointer"
                   onClick={() => onEdit(quote.id)}
                 >
@@ -2003,7 +2034,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                       <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${getStatusColor(quote.status)}`}>
                         {quote.status}
                       </span>
-                      <select 
+                      <select
                         value={quote.status}
                         onChange={(e) => updateStatus(quote.id, e.target.value)}
                         className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-500 outline-none cursor-pointer hover:text-white transition-colors"
@@ -2021,24 +2052,24 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                   </td>
                   <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-2 transition-opacity">
-                      <button 
+                      <button
                         onClick={() => onEdit(quote.id)}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary" 
+                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
                         title="Editar Orçamento"
                       >
                         <Settings size={14} />
                       </button>
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           fetchQuoteDetails(quote.id);
                         }}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-slate-400" 
+                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-slate-400"
                         title="Ver Detalhes"
                       >
                         <Info size={14} />
                       </button>
-                      <button 
+                      <button
                         onClick={async (e) => {
                           e.stopPropagation();
                           try {
@@ -2055,17 +2086,17 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                             showToast("Erro ao gerar PDF.", "error");
                           }
                         }}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-emerald-400" 
+                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-emerald-400"
                         title="Exportar PDF"
                       >
                         <FileDown size={14} />
                       </button>
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setQuoteToDelete(quote.id);
                         }}
-                        className="p-1.5 bg-red-500/10 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400 border border-red-500/20" 
+                        className="p-1.5 bg-red-500/10 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400 border border-red-500/20"
                         title="Excluir"
                       >
                         <X size={14} />
@@ -2079,11 +2110,10 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
         </table>
       </div>
 
-      {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {quoteToDelete && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -2099,13 +2129,13 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                 Esta ação não pode ser desfeita. O orçamento #{quoteToDelete} será removido permanentemente do histórico.
               </p>
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setQuoteToDelete(null)}
                   className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   onClick={() => handleDelete(quoteToDelete)}
                   className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-xl text-sm font-bold transition-colors"
                 >
@@ -2117,11 +2147,10 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
         )}
       </AnimatePresence>
 
-      {/* Details Modal */}
       <AnimatePresence>
         {selectedQuoteDetails && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
@@ -2134,7 +2163,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                     {selectedQuoteDetails.client_name} • {selectedQuoteDetails.project_name}
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedQuoteDetails(null)}
                   className="p-2 hover:bg-white/10 rounded-xl transition-colors"
                 >
@@ -2143,7 +2172,6 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                {/* Items Section */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary">
                     <Layers size={18} />
@@ -2172,7 +2200,6 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                   </div>
                 </div>
 
-                {/* Services Section */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary">
                     <Construction size={18} />
@@ -2195,7 +2222,6 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                   </div>
                 </div>
 
-                {/* Summary Section */}
                 <div className="pt-6 border-t border-border-dark flex justify-between items-end">
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Data de Criação</p>
@@ -2209,7 +2235,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
               </div>
 
               <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
-                <button 
+                <button
                   onClick={() => {
                     try {
                       generateQuotePDF(selectedQuoteDetails);
@@ -2223,7 +2249,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                 >
                   <FileDown size={18} /> Exportar PDF
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setSelectedQuoteDetails(null);
                     onEdit(selectedQuoteDetails.id);
@@ -2232,7 +2258,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
                 >
                   <Settings size={18} /> Editar Orçamento
                 </button>
-                <button 
+                <button
                   onClick={() => setSelectedQuoteDetails(null)}
                   className="px-8 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm transition-colors"
                 >
@@ -2248,7 +2274,7 @@ function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, on
 }
 
 function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
-  const [templates, setTemplates] = useState<{id: number, text: string}[]>([]);
+  const [templates, setTemplates] = useState<{ id: number, text: string }[]>([]);
   const [newTemplate, setNewTemplate] = useState('');
   const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -2424,7 +2450,6 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
         showToast("Erro de conexão ao restaurar backup.", "error");
       }
     }
-    // Reset input
     e.target.value = '';
   };
 
@@ -2445,7 +2470,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
           </p>
 
           <form onSubmit={handleAddTemplate} className="flex gap-2">
-            <input 
+            <input
               value={newTemplate}
               onChange={e => setNewTemplate(e.target.value)}
               className="flex-1 bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
@@ -2460,7 +2485,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             {templates.map(t => (
               <div key={t.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
                 <span className="text-sm">{t.text}</span>
-                <button 
+                <button
                   onClick={() => handleDeleteTemplate(t.id)}
                   className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                 >
@@ -2479,7 +2504,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
               <Bolt className="w-5 h-5" /> Módulos de Orçamento
             </h3>
-            <button 
+            <button
               onClick={() => {
                 setEditingModule({ name: '', description: '', parts: [] });
                 setIsModuleModalOpen(true);
@@ -2501,7 +2526,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                   <span className="text-[10px] text-slate-500">{m.parts.length} peças configuradas</span>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                  <button 
+                  <button
                     onClick={() => {
                       setEditingModule(m);
                       setIsModuleModalOpen(true);
@@ -2510,7 +2535,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                   >
                     <Edit2 size={16} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDeleteModule(m.id)}
                     className="text-slate-500 hover:text-red-500"
                   >
@@ -2530,7 +2555,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
               <Construction className="w-5 h-5" /> Serviços
             </h3>
-            <button 
+            <button
               onClick={() => {
                 setEditingService({ name: '', price: 0, description: '', category: 'other' });
                 setIsServiceModalOpen(true);
@@ -2560,7 +2585,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                       </div>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                      <button 
+                      <button
                         onClick={() => {
                           setEditingService(s);
                           setIsServiceModalOpen(true);
@@ -2569,7 +2594,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                       >
                         <Edit2 size={16} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeleteService(s.id)}
                         className="text-slate-500 hover:text-red-500"
                       >
@@ -2591,7 +2616,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
               <Package className="w-5 h-5" /> Insumos
             </h3>
-            <button 
+            <button
               onClick={() => {
                 setEditingSupply({ name: '', price_per_meter: 0, minutes_per_meter: 0 });
                 setIsSupplyModalOpen(true);
@@ -2616,7 +2641,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                   </div>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                  <button 
+                  <button
                     onClick={() => {
                       setEditingSupply(s);
                       setIsSupplyModalOpen(true);
@@ -2625,7 +2650,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                   >
                     <Edit2 size={16} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDeleteSupply(s.id)}
                     className="text-slate-500 hover:text-red-500"
                   >
@@ -2646,9 +2671,9 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
           <p className="text-sm text-slate-400">
             Gerencie a segurança dos seus dados. Recomendamos fazer backup regularmente.
           </p>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button 
+            <button
               onClick={handleBackup}
               className="flex items-center justify-center gap-3 bg-primary/10 border border-primary/20 text-primary p-4 rounded-xl font-bold hover:bg-primary hover:text-white transition-all group"
             >
@@ -2660,8 +2685,8 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             </button>
 
             <div className="relative">
-              <input 
-                type="file" 
+              <input
+                type="file"
                 accept=".json"
                 onChange={handleRestore}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
@@ -2678,11 +2703,10 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
         </div>
       </div>
 
-      {/* Supply Modal */}
       <AnimatePresence>
         {isSupplyModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -2698,10 +2722,10 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
               <form onSubmit={handleSaveSupply} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Insumo</label>
-                  <input 
+                  <input
                     required
                     value={editingSupply.name}
-                    onChange={e => setEditingSupply({...editingSupply, name: e.target.value})}
+                    onChange={e => setEditingSupply({ ...editingSupply, name: e.target.value })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                     placeholder="Ex: Cola Cuba"
                   />
@@ -2709,35 +2733,35 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço por Metro (R$)</label>
-                    <input 
+                    <input
                       required
                       type="number"
                       step="0.01"
                       value={editingSupply.price_per_meter}
-                      onChange={e => setEditingSupply({...editingSupply, price_per_meter: parseFloat(e.target.value)})}
+                      onChange={e => setEditingSupply({ ...editingSupply, price_per_meter: parseFloat(e.target.value) })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minutos por Metro</label>
-                    <input 
+                    <input
                       required
                       type="number"
                       value={editingSupply.minutes_per_meter}
-                      onChange={e => setEditingSupply({...editingSupply, minutes_per_meter: parseFloat(e.target.value)})}
+                      onChange={e => setEditingSupply({ ...editingSupply, minutes_per_meter: parseFloat(e.target.value) })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                     />
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setIsSupplyModalOpen(false)}
                     className="flex-1 py-2 rounded-lg font-bold text-slate-400 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 py-2 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
                   >
@@ -2750,11 +2774,10 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
         )}
       </AnimatePresence>
 
-      {/* Module Modal */}
       <AnimatePresence>
         {isModuleModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -2771,19 +2794,19 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Módulo</label>
-                    <input 
+                    <input
                       required
                       value={editingModule.name}
-                      onChange={e => setEditingModule({...editingModule, name: e.target.value})}
+                      onChange={e => setEditingModule({ ...editingModule, name: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                       placeholder="Ex: Área Seca"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
-                    <input 
+                    <input
                       value={editingModule.description}
-                      onChange={e => setEditingModule({...editingModule, description: e.target.value})}
+                      onChange={e => setEditingModule({ ...editingModule, description: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                       placeholder="Opcional..."
                     />
@@ -2793,11 +2816,11 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Peças e Fórmulas</h4>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => {
                         const newPart: ModulePart = { id: Math.random().toString(36).substr(2, 9), name: '', widthFormula: 'L', lengthFormula: 'P', quantity: 1 };
-                        setEditingModule({...editingModule, parts: [newPart, ...(editingModule.parts || [])]});
+                        setEditingModule({ ...editingModule, parts: [newPart, ...(editingModule.parts || [])] });
                       }}
                       className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-lg hover:bg-primary hover:text-white transition-all flex items-center gap-1"
                     >
@@ -2808,12 +2831,12 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                   <div className="space-y-3">
                     {editingModule.parts?.map((part, index) => (
                       <div key={part.id} className="p-4 bg-background-dark rounded-lg border border-border-dark space-y-3 relative group">
-                        <button 
+                        <button
                           type="button"
                           onClick={() => {
                             const newParts = [...(editingModule.parts || [])];
                             newParts.splice(index, 1);
-                            setEditingModule({...editingModule, parts: newParts});
+                            setEditingModule({ ...editingModule, parts: newParts });
                           }}
                           className="absolute top-2 right-2 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                         >
@@ -2822,13 +2845,13 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                           <div className="sm:col-span-1">
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Nome da Peça</label>
-                            <input 
+                            <input
                               required
                               value={part.name}
                               onChange={e => {
                                 const newParts = [...(editingModule.parts || [])];
                                 newParts[index].name = e.target.value;
-                                setEditingModule({...editingModule, parts: newParts});
+                                setEditingModule({ ...editingModule, parts: newParts });
                               }}
                               className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
                               placeholder="Ex: Tampo"
@@ -2836,13 +2859,13 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (Fórmula)</label>
-                            <input 
+                            <input
                               required
                               value={part.widthFormula}
                               onChange={e => {
                                 const newParts = [...(editingModule.parts || [])];
                                 newParts[index].widthFormula = e.target.value;
-                                setEditingModule({...editingModule, parts: newParts});
+                                setEditingModule({ ...editingModule, parts: newParts });
                               }}
                               className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-mono"
                               placeholder="Ex: L - 20"
@@ -2850,13 +2873,13 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Profund. (Fórmula)</label>
-                            <input 
+                            <input
                               required
                               value={part.lengthFormula}
                               onChange={e => {
                                 const newParts = [...(editingModule.parts || [])];
                                 newParts[index].lengthFormula = e.target.value;
-                                setEditingModule({...editingModule, parts: newParts});
+                                setEditingModule({ ...editingModule, parts: newParts });
                               }}
                               className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-mono"
                               placeholder="Ex: P"
@@ -2864,14 +2887,14 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Qtd</label>
-                            <input 
+                            <input
                               required
                               type="number"
                               value={part.quantity}
                               onChange={e => {
                                 const newParts = [...(editingModule.parts || [])];
                                 newParts[index].quantity = parseInt(e.target.value) || 1;
-                                setEditingModule({...editingModule, parts: newParts});
+                                setEditingModule({ ...editingModule, parts: newParts });
                               }}
                               className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
                             />
@@ -2880,12 +2903,12 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Acabamento Padrão</label>
-                            <select 
+                            <select
                               value={part.finish || 'Polido'}
                               onChange={e => {
                                 const newParts = [...(editingModule.parts || [])];
                                 newParts[index].finish = e.target.value;
-                                setEditingModule({...editingModule, parts: newParts});
+                                setEditingModule({ ...editingModule, parts: newParts });
                               }}
                               className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
                             >
@@ -2908,7 +2931,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                                   <span className="text-[8px] font-bold text-slate-500 uppercase block">
                                     {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
                                   </span>
-                                  <select 
+                                  <select
                                     value={part.edges?.[side as keyof typeof part.edges] || 'Nenhum'}
                                     onChange={(e) => {
                                       const newParts = [...(editingModule.parts || [])];
@@ -2919,7 +2942,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                                         ...newParts[index].edges!,
                                         [side]: e.target.value
                                       };
-                                      setEditingModule({...editingModule, parts: newParts});
+                                      setEditingModule({ ...editingModule, parts: newParts });
                                     }}
                                     className="w-full bg-transparent text-[9px] outline-none text-primary border-none p-0"
                                   >
@@ -2941,7 +2964,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Serviços da Peça</label>
                           <div className="flex flex-wrap gap-2">
@@ -2959,7 +2982,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                                     } else {
                                       newParts[index].services = [...partServices, { service_id: s.id, dimension: 'width' }];
                                     }
-                                    setEditingModule({...editingModule, parts: newParts});
+                                    setEditingModule({ ...editingModule, parts: newParts });
                                   }}
                                   className={`text-[9px] px-2 py-1 rounded border transition-all ${isSelected ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary-dark border-border-dark text-slate-500 hover:border-slate-400'}`}
                                 >
@@ -2977,7 +3000,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                             {supplies.map(s => {
                               const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
                               const isSelected = !!supplyConfig;
-                              
+
                               return (
                                 <div key={s.id} className="flex flex-col gap-2 p-2 bg-secondary-dark/50 rounded-lg border border-border-dark/50">
                                   <div className="flex items-center justify-between">
@@ -2992,14 +3015,14 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                                         } else {
                                           newParts[index].supplies = [...partSupplies, { supply_id: s.id, sides: [] }];
                                         }
-                                        setEditingModule({...editingModule, parts: newParts});
+                                        setEditingModule({ ...editingModule, parts: newParts });
                                       }}
                                       className={`text-[9px] px-2 py-0.5 rounded border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-background-dark border-border-dark text-slate-500 hover:border-slate-400'}`}
                                     >
                                       {isSelected ? 'Remover' : 'Adicionar'}
                                     </button>
                                   </div>
-                                  
+
                                   {isSelected && (
                                     <div className="flex gap-1.5">
                                       {['top', 'bottom', 'left', 'right'].map(side => (
@@ -3018,7 +3041,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                                                 partSupplies[sIdx].sides = [...currentSides, side as any];
                                               }
                                               newParts[index].supplies = partSupplies;
-                                              setEditingModule({...editingModule, parts: newParts});
+                                              setEditingModule({ ...editingModule, parts: newParts });
                                             }
                                           }}
                                           className={`text-[8px] px-2 py-1 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-500'}`}
@@ -3043,14 +3066,14 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 </div>
 
                 <div className="flex gap-3 pt-4">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setIsModuleModalOpen(false)}
                     className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
                   >
@@ -3063,11 +3086,10 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
         )}
       </AnimatePresence>
 
-      {/* Service Modal */}
       <AnimatePresence>
         {isServiceModalOpen && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -3083,19 +3105,19 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
               <form onSubmit={handleSaveService} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Serviço</label>
-                  <input 
+                  <input
                     required
                     value={editingService.name}
-                    onChange={e => setEditingService({...editingService, name: e.target.value})}
+                    onChange={e => setEditingService({ ...editingService, name: e.target.value })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                     placeholder="Ex: Acabamento 45 Graus"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Categoria</label>
-                  <select 
+                  <select
                     value={editingService.category}
-                    onChange={e => setEditingService({...editingService, category: e.target.value as any})}
+                    onChange={e => setEditingService({ ...editingService, category: e.target.value as any })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                   >
                     <option value="finish">Acabamento</option>
@@ -3105,44 +3127,44 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço por Metro (R$/m)</label>
-                  <input 
+                  <input
                     required
                     type="number"
                     step="0.01"
                     value={editingService.price}
-                    onChange={e => setEditingService({...editingService, price: parseFloat(e.target.value) || 0})}
+                    onChange={e => setEditingService({ ...editingService, price: parseFloat(e.target.value) || 0 })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minutos por Metro (min/m)</label>
-                  <input 
+                  <input
                     type="number"
                     value={editingService.minutes_per_meter || ''}
-                    onChange={e => setEditingService({...editingService, minutes_per_meter: parseFloat(e.target.value) || 0})}
+                    onChange={e => setEditingService({ ...editingService, minutes_per_meter: parseFloat(e.target.value) || 0 })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                     placeholder="Ex: 15"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
-                  <textarea 
+                  <textarea
                     value={editingService.description}
-                    onChange={e => setEditingService({...editingService, description: e.target.value})}
+                    onChange={e => setEditingService({ ...editingService, description: e.target.value })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm h-24 resize-none"
                     placeholder="Opcional..."
                   />
                 </div>
 
                 <div className="flex gap-3 pt-4">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setIsServiceModalOpen(false)}
                     className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
                   >
@@ -3161,7 +3183,6 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
 function evaluateFormula(formula: string, L: number, P: number): number {
   try {
     const sanitized = formula.toUpperCase().replace(/L/g, L.toString()).replace(/P/g, P.toString());
-    // Basic math evaluation
     return eval(sanitized);
   } catch (e) {
     return 0;
@@ -3180,12 +3201,12 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
   const [dimensions, setDimensions] = useState({ L: 800, P: 600 });
   const [calculatedParts, setCalculatedParts] = useState<{
-    id: string, 
-    name: string, 
-    width: number, 
-    length: number, 
-    quantity: number, 
-    finish: string, 
+    id: string,
+    name: string,
+    width: number,
+    length: number,
+    quantity: number,
+    finish: string,
     edges: { top: string, bottom: string, left: string, right: string },
     services?: ModulePartService[],
     supplies?: ModulePartSupply[]
@@ -3196,12 +3217,12 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
     templateName: string,
     projectName: string,
     parts: {
-      id: string, 
-      name: string, 
-      width: number, 
-      length: number, 
-      quantity: number, 
-      finish: string, 
+      id: string,
+      name: string,
+      width: number,
+      length: number,
+      quantity: number,
+      finish: string,
       edges: { top: string, bottom: string, left: string, right: string },
       services?: ModulePartService[],
       supplies?: ModulePartSupply[]
@@ -3209,8 +3230,6 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
     dimensions: { L: number, P: number }
   }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-
-  // Track if the user has manually edited parts to avoid overwriting them on every render
   const [hasManualEdits, setHasManualEdits] = useState(false);
 
   useEffect(() => {
@@ -3244,7 +3263,6 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
     }
   }, [selectedModuleId, dimensions.L, dimensions.P, moduleTemplates, hasManualEdits]);
 
-  // Reset manual edits when module changes
   useEffect(() => {
     setHasManualEdits(false);
   }, [selectedModuleId]);
@@ -3281,8 +3299,6 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
       return;
     }
 
-    // If there's a module currently being configured but not added, add it or confirm?
-    // For simplicity, let's just use addedModules. If addedModules is empty but a module is selected, we can auto-add it.
     let finalModules = [...addedModules];
     if (finalModules.length === 0 && selectedModuleId) {
       const template = moduleTemplates.find(t => t.id === selectedModuleId);
@@ -3314,22 +3330,20 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
 
           allItems.push({
             material_id: selectedMaterialId,
-            description: `${mod.projectName} - ${part.name} (${part.finish} / ${
-              Object.entries(part.edges || {})
-                .filter(([_, type]) => type !== 'Nenhum')
-                .map(([side, type]) => `${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}: ${type}`)
-                .join(', ') || 'Sem Bordas'
-            })`,
+            description: `${mod.projectName} - ${part.name} (${part.finish} / ${Object.entries(part.edges || {})
+              .filter(([_, type]) => type !== 'Nenhum')
+              .map(([side, type]) => `${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}: ${type}`)
+              .join(', ') || 'Sem Bordas'
+              })`,
             width: part.width,
             length: part.length,
             quantity: part.quantity,
             subtotal_m2
           });
 
-          // 1. Automatic Finish Service
           const finishService = services.find(s => s.category === 'finish' && s.name === part.finish);
           if (finishService && finishService.price > 0) {
-            const qty = subtotal_m2; // Area in m2
+            const qty = subtotal_m2;
             const serviceValue = qty * finishService.price;
             totalValue += serviceValue;
             allServices.push({
@@ -3340,14 +3354,12 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
             });
           }
 
-          // 2. Automatic Edge Services
           if (part.edges) {
             Object.entries(part.edges).forEach(([side, type]) => {
               if (!type || type === 'Nenhum') return;
               const edgeType = type as string;
               const edgeService = services.find(s => s.category === 'edge' && s.name.trim().toLowerCase() === edgeType.trim().toLowerCase());
               if (edgeService) {
-                // Determine length of this edge in meters
                 const edgeLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
                 const qty = (edgeLengthMm / 1000) * part.quantity;
                 const serviceValue = qty * edgeService.price;
@@ -3362,12 +3374,10 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
             });
           }
 
-          // 3. Additional Manual Services (from module template)
           if (part.services && part.services.length > 0) {
             part.services.forEach(ps => {
               const service = services.find(s => s.id === ps.service_id);
               if (service) {
-                // For manual services, we'll stick to the previous logic or use a fixed qty
                 const qty = (mod.dimensions.L / 1000) * part.quantity;
                 const serviceValue = qty * service.price;
                 totalValue += serviceValue;
@@ -3382,13 +3392,11 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
             });
           }
 
-          // 4. Supplies (Insumos)
           if (part.supplies && part.supplies.length > 0) {
             part.supplies.forEach(ps => {
               const supply = supplies.find(s => s.id === ps.supply_id);
               if (supply && ps.sides && ps.sides.length > 0) {
                 ps.sides.forEach(side => {
-                  // Determine length of this side in meters
                   const sideLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
                   const qty = (sideLengthMm / 1000) * part.quantity;
                   const supplyValue = qty * supply.price_per_meter;
@@ -3447,8 +3455,8 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Cliente</label>
-            <select 
-              value={selectedClientId || ''} 
+            <select
+              value={selectedClientId || ''}
               onChange={e => setSelectedClientId(Number(e.target.value))}
               className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
             >
@@ -3459,7 +3467,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Projeto</label>
-            <input 
+            <input
               value={projectName}
               onChange={e => setProjectName(e.target.value)}
               className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
@@ -3469,8 +3477,8 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Material Padrão</label>
-            <select 
-              value={selectedMaterialId || ''} 
+            <select
+              value={selectedMaterialId || ''}
               onChange={e => setSelectedMaterialId(Number(e.target.value))}
               className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
             >
@@ -3481,8 +3489,8 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
 
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Módulo</label>
-            <select 
-              value={selectedModuleId || ''} 
+            <select
+              value={selectedModuleId || ''}
               onChange={e => setSelectedModuleId(Number(e.target.value))}
               className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
             >
@@ -3493,7 +3501,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
         </div>
 
         {selectedModuleId && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="p-6 bg-background-dark/30 rounded-2xl border border-border-dark space-y-8"
@@ -3505,10 +3513,10 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
               <div className="space-y-3">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Largura (L)</label>
                 <div className="bg-background-dark border border-border-dark rounded-2xl px-6 py-4 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
-                  <input 
+                  <input
                     type="number"
                     value={dimensions.L}
-                    onChange={e => setDimensions({...dimensions, L: Number(e.target.value)})}
+                    onChange={e => setDimensions({ ...dimensions, L: Number(e.target.value) })}
                     className="w-full bg-transparent border-none text-2xl font-black text-white outline-none"
                   />
                 </div>
@@ -3516,16 +3524,16 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
               <div className="space-y-3">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Profundidade (P)</label>
                 <div className="bg-background-dark border border-border-dark rounded-2xl px-6 py-4 focus-within:ring-2 focus-within:ring-primary/50 transition-all">
-                  <input 
+                  <input
                     type="number"
                     value={dimensions.P}
-                    onChange={e => setDimensions({...dimensions, P: Number(e.target.value)})}
+                    onChange={e => setDimensions({ ...dimensions, P: Number(e.target.value) })}
                     className="w-full bg-transparent border-none text-2xl font-black text-white outline-none"
                   />
                 </div>
               </div>
             </div>
-            
+
             <div className="pt-4 border-t border-border-dark space-y-4">
               <h5 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Peças Geradas (Clique para editar):</h5>
               <div className="space-y-3">
@@ -3533,233 +3541,233 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                   .slice()
                   .sort((a, b) => (a.id === editingPartId ? -1 : b.id === editingPartId ? 1 : 0))
                   .map((part) => (
-                  <div 
-                    key={part.id} 
-                    className={`rounded-2xl border transition-all duration-500 group overflow-hidden ${editingPartId === part.id ? 'bg-primary/10 border-primary ring-1 ring-primary/20 shadow-xl shadow-primary/10' : 'bg-[#1a1f2e]/60 border-border-dark hover:border-primary/40'}`}
-                  >
-                    {editingPartId === part.id ? (
-                      <div className="p-4 bg-primary/5 space-y-4">
-                        <div className="flex justify-between items-center">
-                          <div className="flex-1">
-                            <label className="text-[9px] font-bold text-primary uppercase mb-1 block">Nome da Peça</label>
-                            <input 
-                              autoFocus
-                              value={part.name}
-                              onChange={e => {
-                                setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, name: e.target.value } : p));
-                                setHasManualEdits(true);
-                              }}
-                              className="bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-white outline-none w-full focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingPartId(null);
-                            }} 
-                            className="ml-4 p-2 bg-background-dark border border-border-dark text-slate-400 hover:text-white rounded-xl transition-colors"
-                          >
-                            <Check size={16} className="text-emerald-400" />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Largura (mm)</label>
-                            <div className="flex items-center gap-2 bg-background-dark border border-border-dark rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary">
-                              <input 
-                                type="number"
-                                value={part.width}
+                    <div
+                      key={part.id}
+                      className={`rounded-2xl border transition-all duration-500 group overflow-hidden ${editingPartId === part.id ? 'bg-primary/10 border-primary ring-1 ring-primary/20 shadow-xl shadow-primary/10' : 'bg-[#1a1f2e]/60 border-border-dark hover:border-primary/40'}`}
+                    >
+                      {editingPartId === part.id ? (
+                        <div className="p-4 bg-primary/5 space-y-4">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <label className="text-[9px] font-bold text-primary uppercase mb-1 block">Nome da Peça</label>
+                              <input
+                                autoFocus
+                                value={part.name}
                                 onChange={e => {
-                                  setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, width: Number(e.target.value) } : p));
+                                  setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, name: e.target.value } : p));
                                   setHasManualEdits(true);
                                 }}
-                                className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
+                                className="bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-sm font-bold text-white outline-none w-full focus:ring-1 focus:ring-primary"
                               />
                             </div>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Profundidade (mm)</label>
-                            <div className="flex items-center gap-2 bg-background-dark border border-border-dark rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary">
-                              <input 
-                                type="number"
-                                value={part.length}
-                                onChange={e => {
-                                  setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, length: Number(e.target.value) } : p));
-                                  setHasManualEdits(true);
-                                }}
-                                className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Acabamento</label>
-                            <select 
-                              value={part.finish}
-                              onChange={e => {
-                                setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, finish: e.target.value } : p));
-                                setHasManualEdits(true);
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPartId(null);
                               }}
-                              className="w-full bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:ring-1 focus:ring-primary"
+                              className="ml-4 p-2 bg-background-dark border border-border-dark text-slate-400 hover:text-white rounded-xl transition-colors"
                             >
-                              {services.filter(s => s.category === 'finish').length > 0 ? (
-                                services.filter(s => s.category === 'finish').map(s => (
-                                  <option key={s.id} value={s.name}>{s.name}</option>
-                                ))
-                              ) : (
-                                FINISHING_TYPES.map(type => (
-                                  <option key={type} value={type}>{type}</option>
-                                ))
-                              )}
-                            </select>
+                              <Check size={16} className="text-emerald-400" />
+                            </button>
                           </div>
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Bordas</label>
-                            <div className="grid grid-cols-2 gap-2">
-                              {['top', 'bottom', 'left', 'right'].map((side) => (
-                                <div key={side} className="bg-background-dark p-1.5 rounded border border-border-dark space-y-0.5">
-                                  <span className="text-[7px] font-bold text-slate-500 uppercase block">
-                                    {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
-                                  </span>
-                                  <select 
-                                    value={part.edges?.[side as keyof typeof part.edges] || 'Nenhum'}
-                                    onChange={(e) => {
-                                      setCalculatedParts(prev => prev.map(p => {
-                                        if (p.id !== part.id) return p;
-                                        const edges = p.edges || { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
-                                        return {
-                                          ...p,
-                                          edges: { ...edges, [side]: e.target.value }
-                                        };
-                                      }));
-                                      setHasManualEdits(true);
-                                    }}
-                                    className="w-full bg-transparent text-[8px] outline-none text-primary border-none p-0"
-                                  >
-                                    {services.filter(s => s.category === 'edge').length > 0 ? (
-                                      <>
-                                        <option value="Nenhum" className="bg-secondary-dark">Nenhum</option>
-                                        {services.filter(s => s.category === 'edge').map(s => (
-                                          <option key={s.id} value={s.name} className="bg-secondary-dark">{s.name}</option>
-                                        ))}
-                                      </>
-                                    ) : (
-                                      EDGE_TYPES.map(type => (
-                                        <option key={type} value={type} className="bg-secondary-dark">{type}</option>
-                                      ))
-                                    )}
-                                  </select>
-                                </div>
-                              ))}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-slate-500 uppercase block">Largura (mm)</label>
+                              <div className="flex items-center gap-2 bg-background-dark border border-border-dark rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary">
+                                <input
+                                  type="number"
+                                  value={part.width}
+                                  onChange={e => {
+                                    setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, width: Number(e.target.value) } : p));
+                                    setHasManualEdits(true);
+                                  }}
+                                  className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-slate-500 uppercase block">Profundidade (mm)</label>
+                              <div className="flex items-center gap-2 bg-background-dark border border-border-dark rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary">
+                                <input
+                                  type="number"
+                                  value={part.length}
+                                  onChange={e => {
+                                    setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, length: Number(e.target.value) } : p));
+                                    setHasManualEdits(true);
+                                  }}
+                                  className="w-full bg-transparent border-none text-sm text-primary font-mono outline-none text-center"
+                                />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[9px] font-bold text-slate-500 uppercase block">Insumos da Peça</label>
-                          <div className="grid grid-cols-1 gap-2">
-                            {supplies.map(s => {
-                              const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
-                              const isSelected = !!supplyConfig;
-                              
-                              return (
-                                <div key={s.id} className="flex flex-col gap-1.5 p-2 bg-background-dark/50 rounded-lg border border-border-dark/50">
-                                  <div className="flex items-center justify-between">
-                                    <span className={`text-[9px] font-bold ${isSelected ? 'text-primary' : 'text-slate-500'}`}>{s.name}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-slate-500 uppercase block">Acabamento</label>
+                              <select
+                                value={part.finish}
+                                onChange={e => {
+                                  setCalculatedParts(prev => prev.map(p => p.id === part.id ? { ...p, finish: e.target.value } : p));
+                                  setHasManualEdits(true);
+                                }}
+                                className="w-full bg-background-dark border border-border-dark rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:ring-1 focus:ring-primary"
+                              >
+                                {services.filter(s => s.category === 'finish').length > 0 ? (
+                                  services.filter(s => s.category === 'finish').map(s => (
+                                    <option key={s.id} value={s.name}>{s.name}</option>
+                                  ))
+                                ) : (
+                                  FINISHING_TYPES.map(type => (
+                                    <option key={type} value={type}>{type}</option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-bold text-slate-500 uppercase block">Bordas</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {['top', 'bottom', 'left', 'right'].map((side) => (
+                                  <div key={side} className="bg-background-dark p-1.5 rounded border border-border-dark space-y-0.5">
+                                    <span className="text-[7px] font-bold text-slate-500 uppercase block">
+                                      {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                    </span>
+                                    <select
+                                      value={part.edges?.[side as keyof typeof part.edges] || 'Nenhum'}
+                                      onChange={(e) => {
                                         setCalculatedParts(prev => prev.map(p => {
                                           if (p.id !== part.id) return p;
-                                          const partSupplies = p.supplies || [];
-                                          if (isSelected) {
-                                            return { ...p, supplies: partSupplies.filter(ps => ps.supply_id !== s.id) };
-                                          } else {
-                                            return { ...p, supplies: [...partSupplies, { supply_id: s.id, sides: [] }] };
-                                          }
+                                          const edges = p.edges || { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
+                                          return {
+                                            ...p,
+                                            edges: { ...edges, [side]: e.target.value }
+                                          };
                                         }));
                                         setHasManualEdits(true);
                                       }}
-                                      className={`text-[8px] px-2 py-0.5 rounded border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-background-dark border-border-dark text-slate-600 hover:border-slate-400'}`}
+                                      className="w-full bg-transparent text-[8px] outline-none text-primary border-none p-0"
                                     >
-                                      {isSelected ? 'Remover' : 'Adicionar'}
-                                    </button>
+                                      {services.filter(s => s.category === 'edge').length > 0 ? (
+                                        <>
+                                          <option value="Nenhum" className="bg-secondary-dark">Nenhum</option>
+                                          {services.filter(s => s.category === 'edge').map(s => (
+                                            <option key={s.id} value={s.name} className="bg-secondary-dark">{s.name}</option>
+                                          ))}
+                                        </>
+                                      ) : (
+                                        EDGE_TYPES.map(type => (
+                                          <option key={type} value={type} className="bg-secondary-dark">{type}</option>
+                                        ))
+                                      )}
+                                    </select>
                                   </div>
-                                  
-                                  {isSelected && (
-                                    <div className="flex gap-1">
-                                      {['top', 'bottom', 'left', 'right'].map(side => (
-                                        <button
-                                          key={side}
-                                          type="button"
-                                          onClick={() => {
-                                            setCalculatedParts(prev => prev.map(p => {
-                                              if (p.id !== part.id) return p;
-                                              const partSupplies = [...(p.supplies || [])];
-                                              const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
-                                              if (sIdx > -1) {
-                                                const currentSides = partSupplies[sIdx].sides || [];
-                                                if (currentSides.includes(side as any)) {
-                                                  partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
-                                                } else {
-                                                  partSupplies[sIdx].sides = [...currentSides, side as any];
-                                                }
-                                                return { ...p, supplies: partSupplies };
-                                              }
-                                              return p;
-                                            }));
-                                            setHasManualEdits(true);
-                                          }}
-                                          className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-600'}`}
-                                        >
-                                          {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
-                                        </button>
-                                      ))}
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block">Insumos da Peça</label>
+                            <div className="grid grid-cols-1 gap-2">
+                              {supplies.map(s => {
+                                const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
+                                const isSelected = !!supplyConfig;
+
+                                return (
+                                  <div key={s.id} className="flex flex-col gap-1.5 p-2 bg-background-dark/50 rounded-lg border border-border-dark/50">
+                                    <div className="flex items-center justify-between">
+                                      <span className={`text-[9px] font-bold ${isSelected ? 'text-primary' : 'text-slate-500'}`}>{s.name}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCalculatedParts(prev => prev.map(p => {
+                                            if (p.id !== part.id) return p;
+                                            const partSupplies = p.supplies || [];
+                                            if (isSelected) {
+                                              return { ...p, supplies: partSupplies.filter(ps => ps.supply_id !== s.id) };
+                                            } else {
+                                              return { ...p, supplies: [...partSupplies, { supply_id: s.id, sides: [] }] };
+                                            }
+                                          }));
+                                          setHasManualEdits(true);
+                                        }}
+                                        className={`text-[8px] px-2 py-0.5 rounded border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-background-dark border-border-dark text-slate-600 hover:border-slate-400'}`}
+                                      >
+                                        {isSelected ? 'Remover' : 'Adicionar'}
+                                      </button>
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+
+                                    {isSelected && (
+                                      <div className="flex gap-1">
+                                        {['top', 'bottom', 'left', 'right'].map(side => (
+                                          <button
+                                            key={side}
+                                            type="button"
+                                            onClick={() => {
+                                              setCalculatedParts(prev => prev.map(p => {
+                                                if (p.id !== part.id) return p;
+                                                const partSupplies = [...(p.supplies || [])];
+                                                const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                                if (sIdx > -1) {
+                                                  const currentSides = partSupplies[sIdx].sides || [];
+                                                  if (currentSides.includes(side as any)) {
+                                                    partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
+                                                  } else {
+                                                    partSupplies[sIdx].sides = [...currentSides, side as any];
+                                                  }
+                                                  return { ...p, supplies: partSupplies };
+                                                }
+                                                return p;
+                                              }));
+                                              setHasManualEdits(true);
+                                            }}
+                                            className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-600'}`}
+                                          >
+                                            {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div 
-                        onClick={() => setEditingPartId(part.id)}
-                        className="flex justify-between items-center cursor-pointer p-5 hover:bg-white/5 transition-colors"
-                      >
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-4">
-                            <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{part.name}</span>
-                            <span className="text-[10px] text-slate-400 font-black bg-slate-800/80 px-2.5 py-1 rounded-full uppercase tracking-tighter">x{part.quantity}</span>
+                      ) : (
+                        <div
+                          onClick={() => setEditingPartId(part.id)}
+                          className="flex justify-between items-center cursor-pointer p-5 hover:bg-white/5 transition-colors"
+                        >
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-4">
+                              <span className="text-lg font-bold text-white group-hover:text-primary transition-colors">{part.name}</span>
+                              <span className="text-[10px] text-slate-400 font-black bg-slate-800/80 px-2.5 py-1 rounded-full uppercase tracking-tighter">x{part.quantity}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              <span>{materials.find(m => m.id === selectedMaterialId)?.name || 'Material'}</span>
+                              <span className="text-slate-700">•</span>
+                              <span className="text-primary/70">{part.finish}</span>
+                              <span className="text-slate-700">•</span>
+                              <span className="text-primary/70">
+                                {Object.entries(part.edges || {})
+                                  .filter(([_, type]) => type !== 'Nenhum')
+                                  .map(([side, type]) => `${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}: ${type}`)
+                                  .join(', ') || 'Sem Bordas'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                            <span>{materials.find(m => m.id === selectedMaterialId)?.name || 'Material'}</span>
-                            <span className="text-slate-700">•</span>
-                            <span className="text-primary/70">{part.finish}</span>
-                            <span className="text-slate-700">•</span>
-                            <span className="text-primary/70">
-                              {Object.entries(part.edges || {})
-                                .filter(([_, type]) => type !== 'Nenhum')
-                                .map(([side, type]) => `${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}: ${type}`)
-                                .join(', ') || 'Sem Bordas'}
+                          <div className="flex items-center gap-6">
+                            <span className="text-sm font-mono text-primary/80 font-bold">
+                              {part.width} <span className="text-slate-600 mx-1">×</span> {part.length} <span className="text-slate-500 text-[10px] ml-1 uppercase">mm</span>
                             </span>
+                            <Settings size={18} className="text-slate-700 group-hover:text-primary transition-all group-hover:rotate-90" />
                           </div>
                         </div>
-                        <div className="flex items-center gap-6">
-                          <span className="text-sm font-mono text-primary/80 font-bold">
-                            {part.width} <span className="text-slate-600 mx-1">×</span> {part.length} <span className="text-slate-500 text-[10px] ml-1 uppercase">mm</span>
-                          </span>
-                          <Settings size={18} className="text-slate-700 group-hover:text-primary transition-all group-hover:rotate-90" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                    </div>
+                  ))}
               </div>
 
               <div className="flex justify-end pt-6">
-                <button 
+                <button
                   onClick={handleAddModule}
                   className="bg-primary/10 border border-primary/30 text-primary px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-3 hover:bg-primary hover:text-white transition-all shadow-lg shadow-primary/5"
                 >
@@ -3817,7 +3825,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                         })()}
                       </p>
                     </div>
-                    <button 
+                    <button
                       onClick={() => handleRemoveModule(mod.id)}
                       className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"
                     >
@@ -3827,7 +3835,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                 </div>
               ))}
             </div>
-            
+
             <div className="bg-primary/10 p-6 rounded-2xl border border-primary/30 flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold text-primary uppercase">Total do Orçamento ({addedModules.length} módulos)</p>
@@ -3854,7 +3862,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
           </div>
         )}
 
-        <button 
+        <button
           onClick={handleGenerateQuote}
           disabled={isGenerating}
           className="w-full py-4 bg-primary text-white rounded-xl font-bold text-lg shadow-xl shadow-primary/20 hover:opacity-90 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
@@ -3876,9 +3884,9 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
 function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string>('');
-  const [sheetWidth, setSheetWidth] = useState<number>(3000); // 3000mm default
-  const [sheetHeight, setSheetHeight] = useState<number>(1800); // 1800mm default
-  const [sawThickness, setSawThickness] = useState<number>(5); // 5mm default
+  const [sheetWidth, setSheetWidth] = useState<number>(3000);
+  const [sheetHeight, setSheetHeight] = useState<number>(1800);
+  const [sawThickness, setSawThickness] = useState<number>(5);
   const [items, setItems] = useState<any[]>([]);
   const [plan, setPlan] = useState<any[]>([]);
   const [stockMaterials, setStockMaterials] = useState<Material[]>([]);
@@ -3890,10 +3898,10 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [planName, setPlanName] = useState('');
   const [editingItem, setEditingItem] = useState<any | null>(null);
-  const [manualItem, setManualItem] = useState({ 
-    description: '', 
-    width: '', 
-    length: '', 
+  const [manualItem, setManualItem] = useState({
+    description: '',
+    width: '',
+    length: '',
     quantity: '1',
     material_name: '',
     finishing: 'Polido',
@@ -3908,7 +3916,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
   const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<Quote | null>(null);
   const [optimizationStrategy, setOptimizationStrategy] = useState<'horizontal' | 'vertical' | 'minWaste'>('horizontal');
   const [trimEdges, setTrimEdges] = useState<boolean>(false);
-  const [trimValue, setTrimValue] = useState<number>(20); // 20mm default trim
+  const [trimValue, setTrimValue] = useState<number>(20);
 
   const fetchSavedPlans = () => {
     fetch('/api/cut-plans').then(r => r.json()).then(setSavedPlans);
@@ -3992,13 +4000,12 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       showToast("Área de visualização não encontrada.", "error");
       return;
     }
-    
+
     try {
       showToast("Gerando PDF vetorial de alta qualidade...");
-      
+
       const clientName = selectedQuoteDetails?.client_name || "Cliente Avulso";
-      
-      // Calculate metrics
+
       const totalAreaPieces = plan.reduce((acc, item) => acc + (item.width * item.length), 0) / 1000000;
       const numSheets = Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1;
       const totalAreaSheets = (sheetWidth * sheetHeight * numSheets) / 1000000;
@@ -4020,20 +4027,18 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      // Header
+
       pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(0, 0, 0);
       pdf.text('PLANO DE CORTE', pdfWidth / 2, 15, { align: 'center' });
-      
+
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
       pdf.text(`Cliente: ${clientName}`, 15, 25);
       pdf.text(`Data: ${new Date().toLocaleString('pt-BR')}`, 15, 30);
       pdf.text(`Chapa: ${sheetWidth}x${sheetHeight}mm | Serra: ${sawThickness}mm`, 15, 35);
 
-      // Summary Table
       autoTable(pdf, {
         startY: 40,
         head: [['Métrica', 'Valor']],
@@ -4050,7 +4055,6 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         margin: { left: 15, right: 15 }
       });
 
-      // Pieces Table
       const tableData = items.map(item => [
         item.description || 'Peça',
         `${item.width} x ${item.length}`,
@@ -4068,7 +4072,6 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         margin: { left: 15, right: 15 }
       });
 
-      // Manual PDF Drawing for high quality (vector-based)
       const margin = 15;
       const availableWidth = pdfWidth - (margin * 2);
       const scale = availableWidth / sheetWidth;
@@ -4076,89 +4079,77 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
       for (let s = 0; s < numSheets; s++) {
         const sheetPlan = plan.filter(p => p.sheetIndex === s);
-        
-        // Check if we need a new page
+
         let currentY = (pdf as any).lastAutoTable?.finalY + 15 || 45;
         if (currentY + displaySheetHeight > pdfHeight - 20) {
           pdf.addPage();
           currentY = 20;
         }
 
-        // Sheet Header
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'bold');
         pdf.text(`CHAPA ${s + 1} - ${sheetWidth}x${sheetHeight}mm`, margin, currentY - 5);
-        
-        // Draw Sheet Background (light gray)
+
         pdf.setFillColor(245, 245, 245);
         pdf.rect(margin, currentY, availableWidth, displaySheetHeight, 'F');
-        
-        // Draw Sheet Border
+
         pdf.setDrawColor(0);
         pdf.setLineWidth(0.5);
         pdf.rect(margin, currentY, availableWidth, displaySheetHeight, 'S');
 
-        // Draw Pieces
         sheetPlan.forEach(piece => {
           const px = margin + (piece.x * scale);
           const py = currentY + (piece.y * scale);
           const pw = piece.width * scale;
           const ph = piece.length * scale;
 
-          // Piece Background (white)
           pdf.setFillColor(255, 255, 255);
           pdf.rect(px, py, pw, ph, 'F');
-          
-          // Piece Border
+
           pdf.setDrawColor(0);
           pdf.setLineWidth(0.2);
           pdf.rect(px, py, pw, ph, 'S');
 
-          // Draw Edges (Dashed Lines) - Golden color like UI
           if (piece.edges) {
-            pdf.setDrawColor(218, 165, 32); // Goldenrod
+            pdf.setDrawColor(218, 165, 32);
             pdf.setLineWidth(0.4);
             pdf.setLineDashPattern([1, 1], 0);
-            
-            const edgeOffset = 0.8; // distance from border
-            
+
+            const edgeOffset = 0.8;
+
             if (piece.edges.top !== 'Nenhum') pdf.line(px + 0.5, py + edgeOffset, px + pw - 0.5, py + edgeOffset);
             if (piece.edges.bottom !== 'Nenhum') pdf.line(px + 0.5, py + ph - edgeOffset, px + pw - 0.5, py + ph - edgeOffset);
             if (piece.edges.left !== 'Nenhum') pdf.line(px + edgeOffset, py + 0.5, px + edgeOffset, py + ph - 0.5);
             if (piece.edges.right !== 'Nenhum') pdf.line(px + pw - edgeOffset, py + 0.5, px + pw - edgeOffset, py + ph - 0.5);
-            
-            pdf.setLineDashPattern([], 0); // Reset dash
-            pdf.setDrawColor(0); // Reset color
+
+            pdf.setLineDashPattern([], 0);
+            pdf.setDrawColor(0);
             pdf.setLineWidth(0.2);
           }
 
-          // Piece Labels - Adapted to size
           if (pw > 4 && ph > 3) {
             const label = piece.description || 'Peça';
             const dimLabel = `${piece.width}x${piece.length}`;
-            
-            // Dynamic font size
+
             let fontSize = Math.min(6, pw / 6, ph / 4);
-            if (fontSize < 2.5) fontSize = 2.5; 
-            
+            if (fontSize < 2.5) fontSize = 2.5;
+
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(fontSize);
-            
-            // Truncate label if too wide
+
             let displayLabel = label;
             if (pdf.getTextWidth(displayLabel) > pw - 1) {
               displayLabel = label.substring(0, Math.max(3, Math.floor(pw / (fontSize * 0.4)))) + '..';
             }
 
             const centerY = py + (ph / 2);
-            
+
             if (ph > fontSize * 2.5) {
               pdf.text(displayLabel, px + (pw / 2), centerY - (fontSize * 0.2), { align: 'center', maxWidth: pw - 1 });
               pdf.setFont('helvetica', 'normal');
               pdf.setFontSize(fontSize * 0.85);
               pdf.text(dimLabel, px + (pw / 2), centerY + (fontSize * 0.9), { align: 'center' });
             } else if (ph > fontSize * 1.2) {
-              // Only dimensions if piece is too short
               pdf.text(dimLabel, px + (pw / 2), centerY + (fontSize * 0.3), { align: 'center' });
             }
           }
@@ -4166,7 +4157,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
         (pdf as any).lastAutoTable = { finalY: currentY + displaySheetHeight };
       }
-      
+
       pdf.save(`Plano_Corte_${clientName.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
       showToast("PDF vetorial gerado com sucesso!");
     } catch (error: any) {
@@ -4206,16 +4197,12 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
         const data = await res.json();
         setSelectedQuoteDetails(data);
         if (data.items) {
-          // Extract unique materials
           const materials = Array.from(new Set(data.items.map((item: any) => item.material_name))) as string[];
           setAvailableMaterials(materials);
           if (materials.length > 0) setSelectedMaterial(materials[0]);
 
-          // Flatten items based on quantity
           const flattened: any[] = [];
           data.items.forEach((item: any) => {
-            // Parse edges and finishing from description
-            // Format: "Project - Part (Finishing / Topo: Type, Base: Type, Esq: Type, Dir: Type)"
             const edges = { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
             let finishing = 'Polido';
 
@@ -4225,14 +4212,13 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 const content = contentMatch[1];
                 const parts = content.split(' / ');
                 finishing = parts[0].trim();
-                
+
                 if (parts.length > 1) {
                   const edgeString = parts[1];
                   if (edgeString.includes('Topo: ')) edges.top = edgeString.split('Topo: ')[1].split(',')[0].trim();
                   if (edgeString.includes('Base: ')) edges.bottom = edgeString.split('Base: ')[1].split(',')[0].trim();
                   if (edgeString.includes('Esq.: ')) edges.left = edgeString.split('Esq.: ')[1].split(',')[0].trim();
                   if (edgeString.includes('Dir.: ')) edges.right = edgeString.split('Dir.: ')[1].split(',')[0].trim();
-                  // Fallback for versions without dot
                   if (edges.left === 'Nenhum' && edgeString.includes('Esq: ')) edges.left = edgeString.split('Esq: ')[1].split(',')[0].trim();
                   if (edges.right === 'Nenhum' && edgeString.includes('Dir: ')) edges.right = edgeString.split('Dir: ')[1].split(',')[0].trim();
                 }
@@ -4242,8 +4228,8 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
             for (let i = 0; i < item.quantity; i++) {
               flattened.push({
                 id: `${item.id}-${i}-${Math.random().toString(36).substr(2, 9)}`,
-                width: Math.round(item.width), // already in mm
-                length: Math.round(item.length), // already in mm
+                width: Math.round(item.width),
+                length: Math.round(item.length),
                 description: item.description,
                 material_name: item.material_name,
                 finishing: finishing,
@@ -4278,10 +4264,10 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       });
     }
     setItems([...items, ...newItems]);
-    setManualItem({ 
-      description: '', 
-      width: '', 
-      length: '', 
+    setManualItem({
+      description: '',
+      width: '',
+      length: '',
       quantity: '1',
       material_name: '',
       finishing: 'Polido',
@@ -4294,15 +4280,13 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     e.preventDefault();
     if (!editingItem) return;
 
-    // Find original item to check if dimensions changed
     const originalItem = items.find(it => it.id === editingItem.id);
     const dimensionsChanged = originalItem && (originalItem.width !== editingItem.width || originalItem.length !== editingItem.length);
 
-    setItems(items.map(item => 
+    setItems(items.map(item =>
       item.id === editingItem.id ? { ...editingItem } : item
     ));
-    
-    // If dimensions changed, clear manual position to avoid invalid placement
+
     if (dimensionsChanged) {
       const newManualPositions = { ...manualPositions };
       delete newManualPositions[editingItem.id];
@@ -4310,7 +4294,6 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     }
 
     setEditingItem(null);
-    // Force plan regeneration
     setTimeout(generatePlan, 0);
   };
 
@@ -4321,8 +4304,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       }
       return item;
     }));
-    
-    // Clear manual position for this item to let it be re-packed
+
     const newManualPositions = { ...manualPositions };
     delete newManualPositions[id];
     setManualPositions(newManualPositions);
@@ -4332,7 +4314,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     setDraggedItemId(id);
     const rect = e.currentTarget.getBoundingClientRect();
     setDragOffset({
-      x: (e.clientX - rect.left) * viewScale, // Scale back to mm
+      x: (e.clientX - rect.left) * viewScale,
       y: (e.clientY - rect.top) * viewScale
     });
   };
@@ -4347,15 +4329,12 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     const itemInPlan = plan.find(p => p.id === draggedItemId);
     if (!itemInPlan) return;
 
-    // Calculate proposed position
     let newX = (e.clientX - rect.left) * viewScale - dragOffset.x;
     let newY = (e.clientY - rect.top) * viewScale - dragOffset.y;
 
-    // Bounds check
     newX = Math.max(0, Math.min(sheetWidth - itemInPlan.width, newX));
     newY = Math.max(0, Math.min(sheetHeight - itemInPlan.length, newY));
 
-    // Collision check
     const hasCollision = plan.some(other => {
       if (other.id === draggedItemId || other.sheetIndex !== itemInPlan.sheetIndex) return false;
       return (
@@ -4369,14 +4348,14 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     if (!hasCollision) {
       setManualPositions({
         ...manualPositions,
-        [draggedItemId]: { 
-          x: Math.round(newX), 
-          y: Math.round(newY), 
-          rotated: itemInPlan.rotated 
+        [draggedItemId]: {
+          x: Math.round(newX),
+          y: Math.round(newY),
+          rotated: itemInPlan.rotated
         }
       });
 
-      setPlan(plan.map(p => 
+      setPlan(plan.map(p =>
         p.id === draggedItemId ? { ...p, x: Math.round(newX), y: Math.round(newY) } : p
       ));
     }
@@ -4387,9 +4366,8 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
   };
 
   const generatePlan = () => {
-    // Filter items by material if not 'all'
-    const filteredItems = selectedMaterial === 'all' 
-      ? items 
+    const filteredItems = selectedMaterial === 'all'
+      ? items
       : items.filter(item => item.material_name === selectedMaterial || item.material_name === 'Manual');
 
     if (filteredItems.length === 0) {
@@ -4397,7 +4375,6 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       return;
     }
 
-    // Separate items into manual and auto
     const manualItems = filteredItems.filter(item => manualPositions[item.id]);
     const autoItems = filteredItems.filter(item => !manualPositions[item.id]);
 
@@ -4408,7 +4385,6 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
     const effectiveWidth = sheetWidth - (effectiveTrim * 2);
     const effectiveHeight = sheetHeight - (effectiveTrim * 2);
 
-    // Place manual items first (on first sheet)
     manualItems.forEach(item => {
       const pos = manualPositions[item.id];
       currentPlan.push({
@@ -4422,20 +4398,16 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       });
     });
 
-    // Optimization Strategies
     let sortedItems = [...autoItems];
-    
+
     if (optimizationStrategy === 'minWaste') {
-      // Sort by area (descending) for better packing in minWaste
       sortedItems.sort((a, b) => (b.width * b.length) - (a.width * a.length));
     } else if (optimizationStrategy === 'vertical') {
-      // Sort by width for vertical strips
       sortedItems.sort((a, b) => b.width - a.width);
     } else {
-      // Sort by length for horizontal strips
       sortedItems.sort((a, b) => b.length - a.length);
     }
-    
+
     let currentX = effectiveTrim;
     let currentY = effectiveTrim;
     let shelfWidth = 0;
@@ -4446,21 +4418,20 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       let l = item.length;
       let rotated = false;
 
-      // Try to rotate if allowed
       if (allowRotation) {
         if (optimizationStrategy === 'vertical') {
           if (currentY + l > sheetHeight - effectiveTrim && currentY + w <= sheetHeight - effectiveTrim) {
             [w, l] = [l, w];
             rotated = true;
           } else if (currentY + w <= sheetHeight - effectiveTrim && w < l) {
-             [w, l] = [l, w];
-             rotated = true;
+            [w, l] = [l, w];
+            rotated = true;
           }
         } else {
           if (currentX + w > sheetWidth - effectiveTrim && currentX + l <= sheetWidth - effectiveTrim) {
             [w, l] = [l, w];
             rotated = true;
-          } 
+          }
           else if (currentX + l <= sheetWidth - effectiveTrim && l < w) {
             [w, l] = [l, w];
             rotated = true;
@@ -4469,7 +4440,6 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       }
 
       if (optimizationStrategy === 'vertical') {
-        // Vertical Shelf Packing
         if (currentY + l > sheetHeight - effectiveTrim) {
           currentY = effectiveTrim;
           currentX += shelfWidth + sawThickness;
@@ -4498,7 +4468,6 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
           shelfWidth = Math.max(shelfWidth, w);
         }
       } else {
-        // Horizontal Shelf Packing
         if (currentX + w > sheetWidth - effectiveTrim) {
           currentX = effectiveTrim;
           currentY += shelfHeight + sawThickness;
@@ -4557,19 +4526,19 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
           <p className="text-slate-500 text-sm">Otimize o corte das chapas de pedra.</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <button 
+          <button
             onClick={() => { fetchSavedPlans(); setShowOpenPlans(true); }}
             className="flex-1 sm:flex-none bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-500 hover:text-white transition-all text-sm"
           >
             <FolderOpen size={16} /> Abrir
           </button>
-          <button 
+          <button
             onClick={() => setShowManualAdd(true)}
             className="flex-1 sm:flex-none bg-primary/10 border border-primary/20 text-primary px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-primary hover:text-white transition-all text-sm"
           >
             <Plus size={16} /> Peça Manual
           </button>
-          <button 
+          <button
             onClick={clearItems}
             className="flex-1 sm:flex-none bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-red-500 hover:text-white transition-all text-sm"
           >
@@ -4583,7 +4552,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
           <div className="bg-secondary-dark p-4 rounded-xl border border-border-dark space-y-3">
             <h3 className="text-sm font-bold flex items-center gap-2 text-primary"><Download size={16} /> Importar Orçamento</h3>
             <div className="flex gap-2">
-              <select 
+              <select
                 value={selectedQuoteId}
                 onChange={e => setSelectedQuoteId(e.target.value)}
                 className="flex-1 bg-background-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
@@ -4593,7 +4562,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                   <option key={q.id} value={q.id}>#{q.id} - {q.client_name}</option>
                 ))}
               </select>
-              <button 
+              <button
                 onClick={handleImport}
                 disabled={!selectedQuoteId}
                 className="bg-primary px-3 py-2 rounded-lg font-bold text-xs disabled:opacity-50"
@@ -4608,7 +4577,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (mm)</label>
-                <input 
+                <input
                   type="number"
                   value={sheetWidth}
                   onChange={e => setSheetWidth(parseInt(e.target.value) || 0)}
@@ -4617,7 +4586,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Altura (mm)</label>
-                <input 
+                <input
                   type="number"
                   value={sheetHeight}
                   onChange={e => setSheetHeight(parseInt(e.target.value) || 0)}
@@ -4626,7 +4595,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Serra (mm)</label>
-                <input 
+                <input
                   type="number"
                   value={sawThickness}
                   onChange={e => setSawThickness(parseInt(e.target.value) || 0)}
@@ -4635,7 +4604,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-2">
-                  <input 
+                  <input
                     type="checkbox"
                     checked={trimEdges}
                     onChange={e => setTrimEdges(e.target.checked)}
@@ -4643,7 +4612,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                   />
                   Aparar Bordas (mm)
                 </label>
-                <input 
+                <input
                   type="number"
                   disabled={!trimEdges}
                   value={trimValue}
@@ -4656,28 +4625,28 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-500 uppercase">Estratégia de Corte</label>
               <div className="grid grid-cols-3 gap-1 p-1 bg-background-dark rounded-lg border border-border-dark">
-                <button 
+                <button
                   onClick={() => setOptimizationStrategy('horizontal')}
                   className={`py-1.5 text-[10px] font-bold rounded-md transition-all ${optimizationStrategy === 'horizontal' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Horizontal
                 </button>
-                <button 
+                <button
                   onClick={() => setOptimizationStrategy('vertical')}
                   className={`py-1.5 text-[10px] font-bold rounded-md transition-all ${optimizationStrategy === 'vertical' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Vertical
                 </button>
-                <button 
+                <button
                   onClick={() => setOptimizationStrategy('minWaste')}
                   className={`py-1.5 text-[10px] font-bold rounded-md transition-all ${optimizationStrategy === 'minWaste' ? 'bg-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   Menor Área
                 </button>
               </div>
-              
+
               <label className="flex items-center gap-2 text-[10px] font-medium text-slate-300 cursor-pointer mt-2 bg-background-dark/50 p-2 rounded-lg border border-border-dark/50 hover:bg-background-dark transition-all">
-                <input 
+                <input
                   type="checkbox"
                   checked={allowRotation}
                   onChange={e => setAllowRotation(e.target.checked)}
@@ -4691,7 +4660,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
           {availableMaterials.length > 0 && (
             <div className="bg-secondary-dark p-4 rounded-xl border border-border-dark space-y-2">
               <h3 className="text-sm font-bold flex items-center gap-2 text-primary"><Layers size={16} /> Filtrar Material</h3>
-              <select 
+              <select
                 value={selectedMaterial}
                 onChange={e => setSelectedMaterial(e.target.value)}
                 className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
@@ -4701,13 +4670,13 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
               </select>
             </div>
           )}
-          
+
           {items.length > 0 && (
             <div className="bg-secondary-dark p-4 rounded-xl border border-border-dark">
               <h3 className="text-sm font-bold mb-3 flex justify-between items-center">
                 <span>Peças ({items.length})</span>
               </h3>
-              
+
               {/* Pieces per Material Summary */}
               <div className="mb-4 space-y-1">
                 {Object.entries(items.reduce((acc: any, item) => {
@@ -4731,9 +4700,9 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                         {item.edges && Object.values(item.edges).some(e => e !== 'Nenhum') && (
                           <span className="text-[8px] text-primary font-medium">
                             • {Object.entries(item.edges)
-                                .filter(([_, v]) => v !== 'Nenhum')
-                                .map(([k, v]) => `${k === 'top' ? 'Topo' : k === 'bottom' ? 'Base' : k === 'left' ? 'Esq.' : 'Dir.'}: ${v}`)
-                                .join(', ')}
+                              .filter(([_, v]) => v !== 'Nenhum')
+                              .map(([k, v]) => `${k === 'top' ? 'Topo' : k === 'bottom' ? 'Base' : k === 'left' ? 'Esq.' : 'Dir.'}: ${v}`)
+                              .join(', ')}
                           </span>
                         )}
                       </div>
@@ -4761,19 +4730,19 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-sm font-bold flex items-center gap-2"><Scissors size={16} className="text-primary" /> Visualização</h3>
-                <button 
+                <button
                   onClick={updateCuts}
                   className="p-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg hover:bg-emerald-500 hover:text-white transition-all"
                   title="Atualizar Cortes"
                 >
                   <RotateCw size={14} />
                 </button>
-                
+
                 <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-lg border border-white/5 ml-2">
                   <span className="text-[10px] text-slate-500 uppercase font-bold">Zoom</span>
-                  <input 
-                    type="range" min="2" max="15" step="0.5" 
-                    value={viewScale} 
+                  <input
+                    type="range" min="2" max="15" step="0.5"
+                    value={viewScale}
                     onChange={e => setViewScale(parseFloat(e.target.value))}
                     className="w-16 sm:w-24 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
                   />
@@ -4805,14 +4774,14 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 </div>
               )}
             </div>
-            
+
             {plan.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-3 py-12">
                 <Scissors size={32} className="opacity-20" />
                 <p className="text-sm">Importe um orçamento ou adicione peças manuais.</p>
               </div>
             ) : (
-              <div 
+              <div
                 id="sheet-container"
                 className="relative flex-1 bg-background-dark border-2 border-dashed border-slate-700 rounded-lg overflow-auto p-4 cursor-crosshair select-none scrollbar-thin"
                 onMouseMove={handleDrag}
@@ -4823,17 +4792,17 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                   {Array.from({ length: Math.max(0, ...plan.map(p => p.sheetIndex || 0)) + 1 }).map((_, sIdx) => (
                     <div key={sIdx} className="relative flex flex-col items-center gap-2">
                       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chapa {sIdx + 1}</span>
-                      <div 
+                      <div
                         className="relative bg-slate-800 border border-slate-600 shadow-2xl transition-all"
-                        style={{ 
-                          width: `${sheetWidth / viewScale}px`, 
+                        style={{
+                          width: `${sheetWidth / viewScale}px`,
                           height: `${sheetHeight / viewScale}px`,
                           minWidth: `${sheetWidth / viewScale}px`,
                           minHeight: `${sheetHeight / viewScale}px`
                         }}
                       >
                         {plan.filter(item => (item.sheetIndex || 0) === sIdx).map((item) => (
-                          <div 
+                          <div
                             key={item.id}
                             className={`absolute border flex flex-col items-center justify-center overflow-hidden group transition-all cursor-move ${draggedItemId === item.id ? 'z-50 ring-2 ring-primary shadow-2xl' : ''} ${item.material_name === 'Manual' ? 'bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/40' : 'bg-primary/20 border-primary/50 hover:bg-primary/40'}`}
                             style={{
@@ -4845,51 +4814,51 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                             onMouseDown={(e) => handleDragStart(e, item.id, item.x, item.y)}
                             title={`${item.description} (${item.width}x${item.length}mm) - ${item.material_name} - ${item.finishing || 'Polido'}`}
                           >
-                          <span className="text-[7px] font-bold text-white truncate w-full text-center px-1">{item.description}</span>
-                          <span className="text-[6px] text-slate-400">{item.width}x{item.length}</span>
-                          
-                          <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); toggleRotation(item.id); }}
-                              className="p-0.5 bg-black/50 rounded hover:bg-primary text-white"
-                            >
-                              <RotateCw size={8} />
-                            </button>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); setEditingItem(item); }}
-                              className="p-0.5 bg-black/50 rounded hover:bg-primary text-white"
-                            >
-                              <Edit2 size={8} />
-                            </button>
-                          </div>
+                            <span className="text-[7px] font-bold text-white truncate w-full text-center px-1">{item.description}</span>
+                            <span className="text-[6px] text-slate-400">{item.width}x{item.length}</span>
 
-                          {/* Edge Indicators - Dashed lines for finishing */}
-                          {item.edges?.top !== 'Nenhum' && <div className="absolute top-1 left-1 right-1 h-0 border-t-2 border-dashed border-yellow-400 z-10" />}
-                          {item.edges?.bottom !== 'Nenhum' && <div className="absolute bottom-1 left-1 right-1 h-0 border-b-2 border-dashed border-yellow-400 z-10" />}
-                          {item.edges?.left !== 'Nenhum' && <div className="absolute top-1 bottom-1 left-1 w-0 border-l-2 border-dashed border-yellow-400 z-10" />}
-                          {item.edges?.right !== 'Nenhum' && <div className="absolute top-1 bottom-1 right-1 w-0 border-r-2 border-dashed border-yellow-400 z-10" />}
-                        </div>
-                      ))}
+                            <div className="absolute top-0.5 right-0.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleRotation(item.id); }}
+                                className="p-0.5 bg-black/50 rounded hover:bg-primary text-white"
+                              >
+                                <RotateCw size={8} />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingItem(item); }}
+                                className="p-0.5 bg-black/50 rounded hover:bg-primary text-white"
+                              >
+                                <Edit2 size={8} />
+                              </button>
+                            </div>
+
+                            {/* Edge Indicators - Dashed lines for finishing */}
+                            {item.edges?.top !== 'Nenhum' && <div className="absolute top-1 left-1 right-1 h-0 border-t-2 border-dashed border-yellow-400 z-10" />}
+                            {item.edges?.bottom !== 'Nenhum' && <div className="absolute bottom-1 left-1 right-1 h-0 border-b-2 border-dashed border-yellow-400 z-10" />}
+                            {item.edges?.left !== 'Nenhum' && <div className="absolute top-1 bottom-1 left-1 w-0 border-l-2 border-dashed border-yellow-400 z-10" />}
+                            {item.edges?.right !== 'Nenhum' && <div className="absolute top-1 bottom-1 right-1 w-0 border-r-2 border-dashed border-yellow-400 z-10" />}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
                 </div>
               </div>
             )}
-            
+
             <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-[10px] text-slate-500 italic">
                 * Escala 1:{viewScale.toFixed(1)} | Dimensões em mm
               </div>
               {plan.length > 0 && (
                 <div className="flex gap-2 w-full sm:w-auto">
-                  <button 
+                  <button
                     onClick={() => setShowSaveModal(true)}
                     className="flex-1 sm:flex-none bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-emerald-500 hover:text-white transition-all text-xs"
                   >
                     <Save size={14} /> Salvar
                   </button>
-                  <button 
+                  <button
                     onClick={handleExportPDF}
                     className="flex-1 sm:flex-none bg-primary/10 border border-primary/20 text-primary px-4 py-1.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-primary hover:text-white transition-all text-xs"
                   >
@@ -4906,7 +4875,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       <AnimatePresence>
         {showSaveModal && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -4922,7 +4891,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
               <form onSubmit={handleSavePlan} className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Plano</label>
-                  <input 
+                  <input
                     autoFocus
                     required
                     value={planName}
@@ -4933,14 +4902,14 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setShowSaveModal(false)}
                     className="flex-1 py-3 rounded-lg font-bold text-slate-400 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 py-3 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
                   >
@@ -4957,7 +4926,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       <AnimatePresence>
         {showOpenPlans && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -4978,13 +4947,13 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                       <span className="text-[10px] text-slate-500">{new Date(p.created_at).toLocaleString()}</span>
                     </div>
                     <div className="flex gap-2">
-                      <button 
+                      <button
                         onClick={() => handleLoadPlan(p.id)}
                         className="bg-primary/10 text-primary px-3 py-1 rounded text-xs font-bold hover:bg-primary hover:text-white transition-all"
                       >
                         Abrir
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeletePlan(p.id)}
                         className="text-slate-500 hover:text-red-500 transition-colors"
                       >
@@ -5006,7 +4975,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       <AnimatePresence>
         {showManualAdd && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -5023,20 +4992,20 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição</label>
-                    <input 
+                    <input
                       required
                       value={manualItem.description}
-                      onChange={e => setManualItem({...manualItem, description: e.target.value})}
+                      onChange={e => setManualItem({ ...manualItem, description: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                       placeholder="Ex: Rodapé"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Material</label>
-                    <select 
+                    <select
                       required
                       value={manualItem.material_name}
-                      onChange={e => setManualItem({...manualItem, material_name: e.target.value})}
+                      onChange={e => setManualItem({ ...manualItem, material_name: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     >
                       <option value="">Selecionar...</option>
@@ -5051,31 +5020,31 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (mm)</label>
-                    <input 
+                    <input
                       required
                       type="number"
                       value={manualItem.width}
-                      onChange={e => setManualItem({...manualItem, width: e.target.value})}
+                      onChange={e => setManualItem({ ...manualItem, width: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Compr. (mm)</label>
-                    <input 
+                    <input
                       required
                       type="number"
                       value={manualItem.length}
-                      onChange={e => setManualItem({...manualItem, length: e.target.value})}
+                      onChange={e => setManualItem({ ...manualItem, length: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Qtd</label>
-                    <input 
+                    <input
                       required
                       type="number"
                       value={manualItem.quantity}
-                      onChange={e => setManualItem({...manualItem, quantity: e.target.value})}
+                      onChange={e => setManualItem({ ...manualItem, quantity: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -5083,10 +5052,10 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Acabamento</label>
-                  <select 
+                  <select
                     required
                     value={manualItem.finishing}
-                    onChange={e => setManualItem({...manualItem, finishing: e.target.value})}
+                    onChange={e => setManualItem({ ...manualItem, finishing: e.target.value })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                   >
                     {services.filter(s => s.category === 'finish').length > 0 ? (
@@ -5107,7 +5076,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                     {['top', 'bottom', 'left', 'right'].map((side) => (
                       <div key={side} className="bg-background-dark p-2 rounded border border-border-dark space-y-1">
                         <div className="flex items-center gap-2">
-                          <input 
+                          <input
                             type="checkbox"
                             checked={manualItem.edges[side as keyof typeof manualItem.edges] !== 'Nenhum'}
                             onChange={(e) => {
@@ -5120,7 +5089,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                           <span className="text-[9px] font-bold text-slate-400 uppercase">{side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}</span>
                         </div>
                         {manualItem.edges[side as keyof typeof manualItem.edges] !== 'Nenhum' && (
-                          <select 
+                          <select
                             value={manualItem.edges[side as keyof typeof manualItem.edges]}
                             onChange={(e) => {
                               const newEdges = { ...manualItem.edges };
@@ -5146,14 +5115,14 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setShowManualAdd(false)}
                     className="flex-1 py-2 rounded-lg font-bold text-xs text-slate-400 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 py-2 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity text-xs"
                   >
@@ -5170,7 +5139,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
       <AnimatePresence>
         {editingItem && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -5187,19 +5156,19 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição</label>
-                    <input 
+                    <input
                       required
                       value={editingItem.description}
-                      onChange={e => setEditingItem({...editingItem, description: e.target.value})}
+                      onChange={e => setEditingItem({ ...editingItem, description: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Material</label>
-                    <select 
+                    <select
                       required
                       value={editingItem.material_name}
-                      onChange={e => setEditingItem({...editingItem, material_name: e.target.value})}
+                      onChange={e => setEditingItem({ ...editingItem, material_name: e.target.value })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     >
                       <option value="">Selecionar...</option>
@@ -5214,21 +5183,21 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (mm)</label>
-                    <input 
+                    <input
                       required
                       type="number"
                       value={editingItem.width}
-                      onChange={e => setEditingItem({...editingItem, width: parseInt(e.target.value) || 0})}
+                      onChange={e => setEditingItem({ ...editingItem, width: parseInt(e.target.value) || 0 })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Profundidade (mm)</label>
-                    <input 
+                    <input
                       required
                       type="number"
                       value={editingItem.length}
-                      onChange={e => setEditingItem({...editingItem, length: parseInt(e.target.value) || 0})}
+                      onChange={e => setEditingItem({ ...editingItem, length: parseInt(e.target.value) || 0 })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -5236,10 +5205,10 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Acabamento</label>
-                  <select 
+                  <select
                     required
                     value={editingItem.finishing || 'Polido'}
-                    onChange={e => setEditingItem({...editingItem, finishing: e.target.value})}
+                    onChange={e => setEditingItem({ ...editingItem, finishing: e.target.value })}
                     className="w-full bg-background-dark border border-border-dark rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary"
                   >
                     {services.filter(s => s.category === 'finish').length > 0 ? (
@@ -5260,7 +5229,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                     {['top', 'bottom', 'left', 'right'].map((side) => (
                       <div key={side} className="bg-background-dark p-2 rounded border border-border-dark space-y-1">
                         <div className="flex items-center gap-2">
-                          <input 
+                          <input
                             type="checkbox"
                             checked={editingItem.edges[side as keyof typeof editingItem.edges] !== 'Nenhum'}
                             onChange={(e) => {
@@ -5273,7 +5242,7 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                           <span className="text-[9px] font-bold text-slate-400 uppercase">{side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}</span>
                         </div>
                         {editingItem.edges[side as keyof typeof editingItem.edges] !== 'Nenhum' && (
-                          <select 
+                          <select
                             value={editingItem.edges[side as keyof typeof editingItem.edges]}
                             onChange={(e) => {
                               const newEdges = { ...editingItem.edges };
@@ -5299,14 +5268,14 @@ function CutPlanView({ showToast }: { showToast: (m: string, t?: 'success' | 'er
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setEditingItem(null)}
                     className="flex-1 py-2 rounded-lg font-bold text-xs text-slate-400 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     type="submit"
                     className="flex-1 py-2 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity text-xs"
                   >
