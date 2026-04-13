@@ -16,6 +16,7 @@ model clients {
   address    String?
   created_at DateTime? @default(now())
   quotes     quotes[]
+  payments   payments[]
 }
 
 model cut_plans {
@@ -42,6 +43,19 @@ model materials {
   quantity    Float?        @default(0)
   description String?
   quote_items quote_items[]
+  remnants    remnants[]
+}
+
+model remnants {
+  id           Int       @id @default(autoincrement())
+  material_id  Int
+  width        Float
+  length       Float
+  quantity     Int       @default(1)
+  location     String?
+  observations String?
+  created_at   DateTime? @default(now())
+  materials    materials @relation(fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model module_templates {
@@ -104,4 +118,15 @@ model supplies {
   name              String
   price_per_meter   Float
   minutes_per_meter Float
+}
+model payments {
+  id           Int       @id @default(autoincrement())
+  client_id    Int
+  amount       Float
+  due_date     DateTime?
+  payment_date DateTime?
+  status       String    @default("pendente") // 'pago', 'pendente', 'atrasado'
+  description  String?
+  created_at   DateTime? @default(now())
+  clients      clients   @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

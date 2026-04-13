@@ -15,6 +15,18 @@ export interface Material {
   description: string;
 }
 
+export interface Remnant {
+  id: number;
+  material_id: number;
+  material_name?: string;
+  width: number;
+  length: number;
+  quantity: number;
+  location?: string;
+  observations?: string;
+  created_at: string;
+}
+
 export interface Service {
   id: number;
   name: string;
@@ -71,6 +83,9 @@ export interface DashboardStats {
   monthlyRevenueTrend: number;
   inProduction: number;
   inProductionTrend: number;
+  totalReceivable: number;
+  totalOverdue: number;
+  totalReceived: number;
 }
 
 export interface DescriptionTemplate {

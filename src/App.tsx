@@ -31,7 +31,12 @@ import {
   Database,
   Upload,
   Camera,
-  Zap
+  Zap,
+  CreditCard,
+  ClipboardList,
+  CalendarCheck,
+  ArrowLeft,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
@@ -52,7 +57,10 @@ const MOCK_STATS: DashboardStats = {
   monthlyRevenue: 0,
   monthlyRevenueTrend: 0,
   inProduction: 0,
-  inProductionTrend: 0
+  inProductionTrend: 0,
+  totalReceivable: 0,
+  totalOverdue: 0,
+  totalReceived: 0
 };
 
 const EDGE_TYPES = ['Nenhum', '45 Graus', 'Reto', 'Boleado', 'Meia Cana'];
@@ -269,23 +277,31 @@ export default function App() {
                         <div className="divide-y divide-border-dark">
                           {notifications.map(n => (
                             <div
-                              key={n.id}
+                              key={`${n.type}-${n.id}`}
                               className="p-4 hover:bg-white/5 cursor-pointer flex flex-col gap-1 transition-colors"
                               onClick={() => {
-                                setEditQuoteId(n.id);
-                                setActiveTab('quotes');
+                                if (n.type === 'quote_delay') {
+                                  setEditQuoteId(n.id);
+                                  setActiveTab('quotes');
+                                } else {
+                                  setActiveTab('clients');
+                                }
                                 setShowNotifications(false);
                               }}
                             >
                               <div className="flex justify-between items-start">
-                                <span className="text-xs font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded uppercase">Atrasado</span>
-                                <span className="text-xs font-mono text-slate-500">#{n.id}</span>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${n.type === 'payment_overdue' ? 'bg-orange-500/10 text-orange-400' : 'bg-red-500/10 text-red-400'}`}>
+                                  {n.type === 'payment_overdue' ? 'Pagamento Atrasado' : 'Entrega Atrasada'}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-500">#{n.id}</span>
                               </div>
-                              <p className="text-sm font-bold mt-1">{n.client_name}</p>
+                              <p className="text-sm font-bold mt-1 text-slate-100">{n.client_name}</p>
                               <div className="flex justify-between items-center mt-1">
-                                <p className="text-xs text-slate-400 truncate max-w-[150px]">{n.project_name}</p>
-                                <p className="text-xs font-semibold text-slate-300">
-                                  Entrega: {n.delivery_date.split('-').reverse().join('/')}
+                                <p className="text-xs text-slate-400 truncate max-w-[150px]">
+                                  {n.type === 'payment_overdue' ? `Valor: R$ ${n.amount?.toLocaleString()}` : n.project_name}
+                                </p>
+                                <p className="text-[10px] font-bold text-slate-500">
+                                  {n.due_date ? new Date(n.due_date).toLocaleDateString('pt-BR') : (n.delivery_date?.split('-').reverse().join('/'))}
                                 </p>
                               </div>
                             </div>
@@ -410,12 +426,14 @@ function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (
         <h1 className="text-4xl font-black tracking-tight">Visão Geral</h1>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard label="Orçamentos Pendentes" value={stats.pendingQuotes} trend={stats.pendingQuotesTrend} icon={<History />} color="primary" />
         <StatCard label="Orçamentos Aprovados" value={stats.approvedQuotes} trend={stats.approvedQuotesTrend} icon={<CheckSquare />} color="emerald" />
         <StatCard label="Total de Clientes" value={stats.totalClients} trend={stats.totalClientsTrend} icon={<Users />} color="blue" />
         <StatCard label="Faturamento Mensal" value={`R$ ${stats.monthlyRevenue.toLocaleString()}`} trend={stats.monthlyRevenueTrend} icon={<Calculator />} color="emerald" />
         <StatCard label="Em Produção" value={stats.inProduction} trend={stats.inProductionTrend} icon={<Construction />} color="yellow" />
+        <StatCard label="Total A Receber" value={`R$ ${stats.totalReceivable?.toLocaleString()}`} icon={<Clock />} color="blue" />
+        <StatCard label="Total Em Atraso" value={`R$ ${stats.totalOverdue?.toLocaleString()}`} icon={<Bell />} color="orange" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -506,7 +524,7 @@ function StatCard({ label, value, trend, icon, color }: { label: string, value: 
   const trendText = trend === 0 ? 'Estável' : `${isPositive ? '+' : ''}${trend}%`;
 
   return (
-    <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark shadow-sm">
+    <div className="bg-secondary-dark p-1 rounded-xl border border-border-dark shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className={`p-2 rounded-lg ${colors[color]}`}>
           {React.cloneElement(icon, { size: 20 })}
@@ -602,6 +620,9 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
   const [formData, setFormData] = useState({ name: '', document: '', phone: '', address: '' });
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [clientToDelete, setClientToDelete] = useState<number | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'payments' | 'orders' | 'appointments'>('payments');
+  const [appointments, setAppointments] = useState<any[]>([]); // Mock appointments for now
 
   const fetchClients = () => {
     fetch('/api/clients').then(r => r.json()).then(data => {
@@ -683,139 +704,150 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight">Gestão de Clientes</h1>
-          <p className="text-slate-500 text-sm">Visualize e gerencie sua base de contatos.</p>
-        </div>
-        <button
-          onClick={() => {
-            if (showForm) {
-              setEditingId(null);
-              setFormData({ name: '', document: '', phone: '', address: '' });
-            }
-            setShowForm(!showForm);
-          }}
-          className="w-full sm:w-auto bg-primary px-6 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-        >
-          {showForm ? <X size={20} /> : <Plus size={20} />}
-          {showForm ? 'Cancelar' : 'Novo Cliente'}
-        </button>
-      </div>
+      {!selectedClientId ? (
+        <>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+            <div className="space-y-1">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight">Gestão de Clientes</h1>
+              <p className="text-slate-500 text-sm">Visualize e gerencie sua base de contatos.</p>
+            </div>
+            <button
+              onClick={() => {
+                if (showForm) {
+                  setEditingId(null);
+                  setFormData({ name: '', document: '', phone: '', address: '' });
+                }
+                setShowForm(!showForm);
+              }}
+              className="w-full sm:w-auto bg-primary px-6 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+            >
+              {showForm ? <X size={20} /> : <Plus size={20} />}
+              {showForm ? 'Cancelar' : 'Novo Cliente'}
+            </button>
+          </div>
 
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <form onSubmit={handleSubmit} className="bg-secondary-dark p-6 rounded-xl border border-border-dark grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 mb-2">
-                <h3 className="text-lg font-bold text-primary">{editingId ? 'Editar Cliente' : 'Novo Cliente'}</h3>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase">Nome Completo</label>
-                <input
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="Ex: Maria Oliveira"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase">CPF / CNPJ</label>
-                <input
-                  value={formData.document}
-                  onChange={e => setFormData({ ...formData, document: e.target.value })}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="000.000.000-00"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase">Telefone</label>
-                <input
-                  value={formData.phone}
-                  onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="(00) 00000-0000"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase">Endereço</label>
-                <input
-                  value={formData.address}
-                  onChange={e => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="Rua, Número, Bairro"
-                />
-              </div>
-              <div className="md:col-span-2 flex justify-end pt-4">
-                <button type="submit" className="bg-primary px-8 py-3 rounded-lg font-bold shadow-lg shadow-primary/20">
-                  {editingId ? 'Atualizar Cliente' : 'Salvar Cliente'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
-        <table className="w-full text-left min-w-[600px]">
-          <thead className="bg-white/5">
-            <tr>
-              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Cliente</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Documento</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Telefone</th>
-              <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-dark">
-            {clients.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-500">Nenhum cliente cadastrado.</td>
-              </tr>
-            ) : filteredClients.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-12 text-center text-slate-500">Nenhum cliente encontrado para essa busca.</td>
-              </tr>
-            ) : filteredClients.map(client => (
-              <tr key={client.id} className="hover:bg-white/5 transition-colors">
-                <td className="px-6 py-4 font-bold text-sm">{client.name}</td>
-                <td className="px-6 py-4 text-slate-400 text-sm">{client.document}</td>
-                <td className="px-6 py-4 text-slate-400 text-sm">{client.phone}</td>
-                <td className="px-6 py-4 relative">
-                  <button
-                    onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
-                    className="p-2 text-slate-500 hover:text-primary transition-colors"
-                  >
-                    <MoreVertical size={18} />
-                  </button>
+          <AnimatePresence>
+            {showForm && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <form onSubmit={handleSubmit} className="bg-secondary-dark p-6 rounded-xl border border-border-dark grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2 mb-2">
+                    <h3 className="text-lg font-bold text-primary">{editingId ? 'Editar Cliente' : 'Novo Cliente'}</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Nome Completo</label>
+                    <input
+                      required
+                      value={formData.name}
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="Ex: Maria Oliveira"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase">CPF / CNPJ</label>
+                    <input
+                      value={formData.document}
+                      onChange={e => setFormData({ ...formData, document: e.target.value })}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Telefone</label>
+                    <input
+                      value={formData.phone}
+                      onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Endereço</label>
+                    <input
+                      value={formData.address}
+                      onChange={e => setFormData({ ...formData, address: e.target.value })}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="Rua, Número, Bairro"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex justify-end pt-4">
+                    <button type="submit" className="bg-primary px-8 py-3 rounded-lg font-bold shadow-lg shadow-primary/20">
+                      {editingId ? 'Atualizar Cliente' : 'Salvar Cliente'}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-                  {openMenuId === client.id && (
-                    <div className="absolute right-6 top-12 w-32 bg-secondary-dark border border-border-dark rounded-lg shadow-xl z-50 overflow-hidden">
+          <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
+            <table className="w-full text-left min-w-[600px]">
+              <thead className="bg-white/5">
+                <tr>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Cliente</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Documento</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Telefone</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-dark">
+                {clients.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">Nenhum cliente cadastrado.</td>
+                  </tr>
+                ) : filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-slate-500">Nenhum cliente encontrado para essa busca.</td>
+                  </tr>
+                ) : filteredClients.map(client => (
+                  <tr key={client.id} className="hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setSelectedClientId(client.id)}>
+                    <td className="px-6 py-4 font-bold text-sm text-primary hover:underline">{client.name}</td>
+                    <td className="px-6 py-4 text-slate-400 text-sm">{client.document}</td>
+                    <td className="px-6 py-4 text-slate-400 text-sm">{client.phone}</td>
+                    <td className="px-6 py-4 relative">
                       <button
-                        onClick={() => handleEdit(client)}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-white/5 transition-colors flex items-center gap-2"
+                        onClick={() => setOpenMenuId(openMenuId === client.id ? null : client.id)}
+                        className="p-2 text-slate-500 hover:text-primary transition-colors"
                       >
-                        <Settings size={14} /> Editar
+                        <MoreVertical size={18} />
                       </button>
-                      <button
-                        onClick={() => setClientToDelete(client.id)}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-red-500/10 text-red-400 transition-colors flex items-center gap-2"
-                      >
-                        <X size={14} /> Excluir
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+
+                      {openMenuId === client.id && (
+                        <div className="absolute right-6 top-12 w-32 bg-secondary-dark border border-border-dark rounded-lg shadow-xl z-50 overflow-hidden">
+                          <button
+                            onClick={() => handleEdit(client)}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-white/5 transition-colors flex items-center gap-2"
+                          >
+                            <Settings size={14} /> Editar
+                          </button>
+                          <button
+                            onClick={() => setClientToDelete(client.id)}
+                            className="w-full px-4 py-2 text-left text-sm hover:bg-red-500/10 text-red-400 transition-colors flex items-center gap-2"
+                          >
+                            <X size={14} /> Excluir
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <ClientDetailView
+          clientId={selectedClientId}
+          onBack={() => setSelectedClientId(null)}
+          showToast={showToast}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
@@ -858,11 +890,384 @@ function ClientsView({ searchTerm, initialAction, onActionComplete, showToast }:
   );
 }
 
+function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, onBack: () => void, showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [client, setClient] = useState<Client | null>(null);
+  const [activeSubTab, setActiveSubTab] = useState<'payments' | 'orders' | 'appointments'>('orders');
+  const [orders, setOrders] = useState<Quote[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [showAppointmentForm, setShowAppointmentForm] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState<'received' | 'pending' | null>(null);
+  const [newAppointment, setNewAppointment] = useState({ title: '', date: '', time: '', type: 'Visita' });
+  const [paymentData, setPaymentData] = useState({ amount: '', date: '', installments: '1', description: '' });
+
+  const fetchData = () => {
+    fetch(`/api/clients/${clientId}`).then(r => r.json()).then(setClient);
+    fetch(`/api/quotes?client_id=${clientId}`).then(r => r.json()).then(setOrders);
+    fetch(`/api/payments?client_id=${clientId}`).then(r => r.json()).then(setPayments);
+
+    // Mock appointments from localStorage
+    const saved = localStorage.getItem(`appointments_${clientId}`);
+    if (saved) setAppointments(JSON.parse(saved));
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [clientId]);
+
+  const saveAppointments = (newItems: any[]) => {
+    setAppointments(newItems);
+    localStorage.setItem(`appointments_${clientId}`, JSON.stringify(newItems));
+  };
+
+  const handleAddAppointment = (e: React.FormEvent) => {
+    e.preventDefault();
+    const item = { ...newAppointment, id: Date.now() };
+    saveAppointments([...appointments, item]);
+    setNewAppointment({ title: '', date: '', time: '', type: 'Visita' });
+    setShowAppointmentForm(false);
+    showToast("Compromisso agendado!");
+  };
+
+  const handleAddPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const installmentsCount = parseInt(paymentData.installments) || 1;
+    const amountPerInstallment = parseFloat(paymentData.amount) / installmentsCount;
+    const baseDate = new Date(paymentData.date || new Date());
+
+    for (let i = 0; i < installmentsCount; i++) {
+      const dueDate = new Date(baseDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+
+      await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: clientId,
+          amount: amountPerInstallment,
+          due_date: showPaymentForm === 'pending' ? dueDate.toISOString() : null,
+          payment_date: showPaymentForm === 'received' ? baseDate.toISOString() : null,
+          status: showPaymentForm === 'received' ? 'pago' : 'pendente',
+          description: installmentsCount > 1
+            ? `${paymentData.description} (Parcela ${i + 1}/${installmentsCount})`
+            : paymentData.description
+        })
+      });
+    }
+
+    setShowPaymentForm(null);
+    setPaymentData({ amount: '', date: '', installments: '1', description: '' });
+    showToast(installmentsCount > 1 ? "Parcelas geradas com sucesso!" : "Pagamento lançado!");
+    fetchData();
+  };
+
+  if (!client) return <div className="p-8 text-center">Carregando...</div>;
+
+  return (
+    <div className="space-y-6">
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+        <ArrowLeft size={20} /> Voltar para lista
+      </button>
+
+      <div className="bg-secondary-dark rounded-2xl border border-border-dark p-6">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h2 className="text-2xl font-black">{client.name}</h2>
+            <p className="text-slate-500 text-sm">{client.phone} • {client.address}</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const hasBillable = orders.some(o => ['Aprovado', 'Enviado', 'Entregue', 'Em Produção'].includes(o.status));
+                if (hasBillable) setActiveSubTab('payments');
+                else showToast("Aba bloqueada: Lançamentos financeiros permitidos apenas para pedidos aprovados.", "error");
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'payments' ? 'bg-primary text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'} ${!orders.some(o => ['Aprovado', 'Enviado', 'Entregue', 'Em Produção'].includes(o.status)) ? 'opacity-50' : ''}`}
+            >
+              <CreditCard size={16} /> Pagamentos
+            </button>
+            <button
+              onClick={() => setActiveSubTab('orders')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'orders' ? 'bg-primary text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+            >
+              <ClipboardList size={16} /> Pedidos
+            </button>
+            <button
+              onClick={() => setActiveSubTab('appointments')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'appointments' ? 'bg-primary text-white' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+            >
+              <CalendarCheck size={16} /> Compromissos
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-8">
+          {activeSubTab === 'payments' && (
+            <div className="space-y-6">
+              <div className="flex gap-4">
+                <button
+                  onClick={() => { setShowPaymentForm('received'); setPaymentData(p => ({ ...p, installments: '1' })); }}
+                  className="bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-all border border-emerald-500/20"
+                >
+                  Lançar Recebimento
+                </button>
+                <button
+                  onClick={() => setShowPaymentForm('pending')}
+                  className="bg-blue-500/10 text-blue-400 px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-500/20 transition-all border border-blue-500/20"
+                >
+                  Lançar A Receber
+                </button>
+              </div>
+
+              <AnimatePresence>
+                {showPaymentForm && (
+                  <motion.form
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    onSubmit={handleAddPayment}
+                    className="bg-background-dark p-6 rounded-xl border border-primary/20 overflow-hidden"
+                  >
+                    <h3 className="text-sm font-bold mb-4 text-primary">
+                      {showPaymentForm === 'received' ? 'Novo Recebimento' : 'Novo Lançamento A Receber'}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Valor Total (R$)</label>
+                        <input required type="number" step="0.01" value={paymentData.amount} onChange={e => setPaymentData({ ...paymentData, amount: e.target.value })} className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" placeholder="0.00" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Data {showPaymentForm === 'received' ? 'do Recebimento' : 'do Vencimento'}</label>
+                        <input required type="date" value={paymentData.date} onChange={e => setPaymentData({ ...paymentData, date: e.target.value })} className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                      </div>
+                      {showPaymentForm === 'pending' && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Parcelas</label>
+                          <input required type="number" min="1" value={paymentData.installments} onChange={e => setPaymentData({ ...paymentData, installments: e.target.value })} className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm outline-none" />
+                        </div>
+                      )}
+                      <div className={`${showPaymentForm === 'pending' ? 'md:col-span-1' : 'md:col-span-2'} space-y-1`}>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Descrição</label>
+                        <input value={paymentData.description} onChange={e => setPaymentData({ ...paymentData, description: e.target.value })} className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm outline-none" placeholder="Ex: Entrada 50%" />
+                      </div>
+                      <div className="md:col-span-4 flex justify-end gap-2 pt-2">
+                        <button type="button" onClick={() => setShowPaymentForm(null)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancelar</button>
+                        <button type="submit" className="bg-primary px-6 py-2 rounded-lg text-xs font-bold text-white shadow-lg shadow-primary/20 hover:opacity-90">Salvar Lançamento</button>
+                      </div>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
+                  <p className="text-xs font-bold text-emerald-400 uppercase mb-1">Recebido</p>
+                  <p className="text-xl font-black text-emerald-500">
+                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pago').reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
+                  <p className="text-xs font-bold text-blue-400 uppercase mb-1">A receber</p>
+                  <p className="text-xl font-black text-blue-500">
+                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pendente' && p.due_date && new Date(p.due_date) >= new Date()).reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
+                  <p className="text-xs font-bold text-red-400 uppercase mb-1">Em atraso</p>
+                  <p className="text-xl font-black text-red-500">
+                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pendente' && p.due_date && new Date(p.due_date) < new Date()).reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-background-dark/50 rounded-xl border border-border-dark overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-white/5 uppercase font-bold text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Data</th>
+                      <th className="px-4 py-3">Descrição</th>
+                      <th className="px-4 py-3">Vencimento</th>
+                      <th className="px-4 py-3">Valor</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-dark">
+                    {payments.length === 0 ? (
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500 italic">Nenhum lançamento financeiro.</td></tr>
+                    ) : (
+                      payments.map(p => (
+                        <tr key={p.id} className="hover:bg-white/5">
+                          <td className="px-4 py-3 text-slate-400">
+                            {p.payment_date ? new Date(p.payment_date).toLocaleDateString('pt-BR') : new Date(p.created_at).toLocaleDateString('pt-BR')}
+                          </td>
+                          <td className="px-4 py-3 font-semibold">{p.description || '-'}</td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '-'}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-primary">R$ {p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${p.status === 'pago' ? 'bg-emerald-500/10 text-emerald-400' :
+                              (new Date(p.due_date) < new Date() ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400')
+                              }`}>
+                              {p.status === 'pago' ? 'Pago' : (new Date(p.due_date) < new Date() ? 'Atrasado' : 'Pendente')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              {p.status === 'pendente' && (
+                                <button
+                                  onClick={async () => {
+                                    await fetch(`/api/payments/${p.id}`, {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ status: 'pago', payment_date: new Date().toISOString() })
+                                    });
+                                    showToast("Pagamento baixado!");
+                                    fetchData();
+                                  }}
+                                  className="text-emerald-500 hover:text-emerald-400 p-1" title="Dar baixa"
+                                >
+                                  <Check size={14} />
+                                </button>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  await fetch(`/api/payments/${p.id}`, { method: 'DELETE' });
+                                  showToast("Lançamento removido");
+                                  fetchData();
+                                }}
+                                className="text-slate-500 hover:text-red-400 p-1"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeSubTab === 'orders' && (
+            <div className="space-y-4">
+              {orders.length === 0 ? (
+                <p className="text-center py-8 text-slate-500">Nenhum pedido encontrado para este cliente.</p>
+              ) : (
+                <div className="grid gap-4">
+                  {orders.map(order => (
+                    <div key={order.id} className="bg-background-dark/50 p-4 rounded-xl border border-border-dark flex justify-between items-center hover:bg-white/5 transition-colors">
+                      <div>
+                        <p className="font-bold">{order.project_name}</p>
+                        <p className="text-xs text-slate-500">#{order.id} • {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-black text-primary">R$ {order.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${order.status === 'Aprovado' ? 'bg-emerald-500/10 text-emerald-400' :
+                          order.status === 'Enviado' ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-500/10 text-slate-400'
+                          }`}>{order.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeSubTab === 'appointments' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold flex items-center gap-2"><Clock size={16} /> Próximos Compromissos</h3>
+                <button
+                  onClick={() => setShowAppointmentForm(!showAppointmentForm)}
+                  className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold hover:bg-primary/20 transition-all flex items-center gap-2"
+                >
+                  <Plus size={14} /> Novo Compromisso
+                </button>
+              </div>
+
+              <AnimatePresence>
+                {showAppointmentForm && (
+                  <motion.form
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    onSubmit={handleAddAppointment}
+                    className="bg-background-dark p-4 rounded-xl border border-primary/20 grid grid-cols-1 md:grid-cols-4 gap-3"
+                  >
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Título</label>
+                      <input required value={newAppointment.title} onChange={e => setNewAppointment({ ...newAppointment, title: e.target.value })} className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm outline-none" placeholder="Ex: Medição no local" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Data</label>
+                      <input required type="date" value={newAppointment.date} onChange={e => setNewAppointment({ ...newAppointment, date: e.target.value })} className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm outline-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Tipo</label>
+                      <select value={newAppointment.type} onChange={e => setNewAppointment({ ...newAppointment, type: e.target.value })} className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-sm outline-none">
+                        <option>Visita</option>
+                        <option>Entrega</option>
+                        <option>Medição</option>
+                        <option>Pagamento</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-4 flex justify-end gap-2">
+                      <button type="button" onClick={() => setShowAppointmentForm(false)} className="px-4 py-2 text-xs font-bold text-slate-500">Cancelar</button>
+                      <button type="submit" className="bg-primary px-6 py-2 rounded-lg text-xs font-bold text-white shadow-lg shadow-primary/20">Salvar</button>
+                    </div>
+                  </motion.form>
+                )}
+              </AnimatePresence>
+
+              <div className="space-y-3">
+                {appointments.length === 0 ? (
+                  <p className="text-center py-8 text-slate-500">Nenhum compromisso agendado.</p>
+                ) : (
+                  appointments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(app => (
+                    <div key={app.id} className="bg-background-dark/30 p-4 rounded-xl border border-border-dark flex justify-between items-center">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-2 rounded-lg ${app.type === 'Entrega' ? 'bg-orange-500/10 text-orange-400' : 'bg-primary/10 text-primary'}`}>
+                          {app.type === 'Entrega' ? <Package size={18} /> : <CalendarCheck size={18} />}
+                        </div>
+                        <div>
+                          <p className="font-bold">{app.title}</p>
+                          <p className="text-xs text-slate-500">{new Date(app.date).toLocaleDateString('pt-BR')} • {app.type}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const updated = appointments.filter(a => a.id !== app.id);
+                          saveAppointments(updated);
+                        }}
+                        className="p-2 text-slate-600 hover:text-red-400 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [remnants, setRemnants] = useState<Remnant[]>([]);
+  const [activeSubTab, setActiveSubTab] = useState<'slabs' | 'remnants'>('slabs');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: '', price: '', quantity: '', description: '' });
+  const [remnantFormData, setRemnantFormData] = useState({ material_id: '', width: '', length: '', quantity: '1', location: '', observations: '' });
   const [stockEntryMaterial, setStockEntryMaterial] = useState<Material | null>(null);
   const [stockAmount, setStockAmount] = useState('');
 
@@ -870,8 +1275,13 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
     fetch('/api/materials').then(r => r.json()).then(setMaterials);
   };
 
+  const fetchRemnants = () => {
+    fetch('/api/remnants').then(r => r.json()).then(setRemnants);
+  };
+
   useEffect(() => {
     fetchMaterials();
+    fetchRemnants();
   }, []);
 
   const filteredMaterials = materials.filter((material) =>
@@ -880,6 +1290,16 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
       material.description,
       material.price,
       material.quantity
+    ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
+  );
+
+  const filteredRemnants = remnants.filter((r) =>
+    !searchTerm || [
+      r.material_name,
+      r.location,
+      r.observations,
+      r.width,
+      r.length
     ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
   );
 
@@ -909,6 +1329,24 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
     }
   };
 
+  const handleRemnantSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch('/api/remnants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(remnantFormData)
+    });
+
+    if (res.ok) {
+      showToast("Retalho adicionado ao inventário!");
+      setRemnantFormData({ material_id: '', width: '', length: '', quantity: '1', location: '', observations: '' });
+      setShowForm(false);
+      fetchRemnants();
+    } else {
+      showToast("Erro ao adicionar retalho.", "error");
+    }
+  };
+
   const handleEdit = (m: Material) => {
     setFormData({
       name: m.name,
@@ -929,6 +1367,16 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
         fetchMaterials();
       } else {
         showToast("Erro ao excluir material.", "error");
+      }
+    }
+  };
+
+  const handleDeleteRemnant = async (id: number) => {
+    if (confirm('Deseja remover este retalho do inventário?')) {
+      const res = await fetch(`/api/remnants/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast("Retalho removido.");
+        fetchRemnants();
       }
     }
   };
@@ -959,25 +1407,39 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl md:text-3xl font-black tracking-tight">Estoque de Pedras</h1>
-          <p className="text-slate-500 text-sm">Controle de chapas e precificação por m².</p>
+          <div className="flex gap-4 mt-2">
+            <button 
+              onClick={() => { setActiveSubTab('slabs'); setShowForm(false); }}
+              className={`text-xs font-bold uppercase tracking-wider pb-1 transition-all ${activeSubTab === 'slabs' ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Chapas / Estoque Geral
+            </button>
+            <button 
+              onClick={() => { setActiveSubTab('remnants'); setShowForm(false); }}
+              className={`text-xs font-bold uppercase tracking-wider pb-1 transition-all ${activeSubTab === 'remnants' ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Inventário de Retalhos
+            </button>
+          </div>
         </div>
         <button
           onClick={() => {
             if (showForm) {
               setEditingId(null);
               setFormData({ name: '', price: '', quantity: '', description: '' });
+              setRemnantFormData({ material_id: '', width: '', length: '', quantity: '1', location: '', observations: '' });
             }
             setShowForm(!showForm);
           }}
           className="w-full sm:w-auto bg-primary px-6 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
         >
           {showForm ? <X size={20} /> : <Plus size={20} />}
-          {showForm ? 'Cancelar' : 'Adicionar Chapa'}
+          {showForm ? 'Cancelar' : activeSubTab === 'slabs' ? 'Adicionar Chapa' : 'Lançar Retalho'}
         </button>
       </div>
 
       <AnimatePresence>
-        {showForm && (
+        {showForm && activeSubTab === 'slabs' && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -1039,55 +1501,200 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
             </form>
           </motion.div>
         )}
+
+        {showForm && activeSubTab === 'remnants' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <form onSubmit={handleRemnantSubmit} className="bg-secondary-dark p-6 rounded-xl border border-border-dark grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-4 mb-2">
+                <h3 className="text-lg font-bold text-primary">Novo Retalho (Remanescente)</h3>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Material Vinculado</label>
+                <select
+                  required
+                  value={remnantFormData.material_id}
+                  onChange={e => setRemnantFormData({ ...remnantFormData, material_id: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Selecione o material...</option>
+                  {materials.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Comp. (mm)</label>
+                <input
+                  required
+                  type="number"
+                  value={remnantFormData.length}
+                  onChange={e => setRemnantFormData({ ...remnantFormData, length: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: 800"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Largura (mm)</label>
+                <input
+                  required
+                  type="number"
+                  value={remnantFormData.width}
+                  onChange={e => setRemnantFormData({ ...remnantFormData, width: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: 600"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Quantidade</label>
+                <input
+                  required
+                  type="number"
+                  value={remnantFormData.quantity}
+                  onChange={e => setRemnantFormData({ ...remnantFormData, quantity: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="1"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Localização</label>
+                <input
+                  value={remnantFormData.location}
+                  onChange={e => setRemnantFormData({ ...remnantFormData, location: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Prateleira, Galpão..."
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Observações</label>
+                <input
+                  value={remnantFormData.observations}
+                  onChange={e => setRemnantFormData({ ...remnantFormData, observations: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Canto quebrado, risco superficial..."
+                />
+              </div>
+              <div className="md:col-span-4 flex justify-end pt-4">
+                <button type="submit" className="bg-primary px-8 py-3 rounded-lg font-bold shadow-lg shadow-primary/20">
+                  Salvar Retalho
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {materials.length === 0 ? (
-          <div className="md:col-span-2 lg:col-span-3 bg-secondary-dark p-10 rounded-xl border border-border-dark text-center text-slate-500">
-            Nenhum material cadastrado.
-          </div>
-        ) : filteredMaterials.length === 0 ? (
-          <div className="md:col-span-2 lg:col-span-3 bg-secondary-dark p-10 rounded-xl border border-border-dark text-center text-slate-500">
-            Nenhum material encontrado para essa busca.
-          </div>
-        ) : filteredMaterials.map(m => (
-          <div key={m.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group">
-            <div className="absolute top-4 right-4 flex gap-2 transition-opacity">
-              <button
-                onClick={() => handleEdit(m)}
-                className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
-                title="Editar"
-              >
-                <Settings size={14} />
-              </button>
-              <button
-                onClick={() => handleDelete(m.id)}
-                className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400"
-                title="Excluir"
-              >
-                <X size={14} />
-              </button>
+      {activeSubTab === 'slabs' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {materials.length === 0 ? (
+            <div className="md:col-span-2 lg:col-span-3 bg-secondary-dark p-10 rounded-xl border border-border-dark text-center text-slate-500">
+              Nenhum material cadastrado.
             </div>
-            <div className="flex justify-between items-start mb-4 pr-12">
-              <h3 className="font-bold text-lg">{m.name}</h3>
-              <span className="text-primary font-bold">R$ {m.price}/m²</span>
+          ) : filteredMaterials.length === 0 ? (
+            <div className="md:col-span-2 lg:col-span-3 bg-secondary-dark p-10 rounded-xl border border-border-dark text-center text-slate-500">
+              Nenhum material encontrado para essa busca.
             </div>
-            <p className="text-slate-500 text-sm mb-6">{m.description}</p>
-            <div className="flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-500 uppercase font-bold">Estoque</span>
-                <span className={`font-bold ${m.quantity < 5 ? 'text-orange-500' : 'text-white'}`}>{m.quantity} m²</span>
+          ) : filteredMaterials.map(m => (
+            <div key={m.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group shadow-sm">
+              <div className="absolute top-4 right-4 flex gap-2 transition-opacity">
+                <button onClick={() => handleEdit(m)} className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary" title="Editar">
+                  <Settings size={14} />
+                </button>
+                <button onClick={() => handleDelete(m.id)} className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400" title="Excluir">
+                  <X size={14} />
+                </button>
               </div>
-              <button
-                onClick={() => setStockEntryMaterial(m)}
-                className="p-2 bg-white/5 rounded-lg hover:bg-primary hover:text-white transition-all"
-              >
-                <Plus size={18} />
-              </button>
+              <div className="flex justify-between items-start mb-4 pr-12">
+                <h3 className="font-bold text-lg">{m.name}</h3>
+                <span className="text-primary font-bold">R$ {m.price}/m²</span>
+              </div>
+              <p className="text-slate-500 text-sm mb-6 line-clamp-2 h-10">{m.description || 'Sem descrição.'}</p>
+              <div className="flex justify-between items-center bg-background-dark/30 p-3 rounded-lg border border-white/5">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Estoque Atual</span>
+                  <span className={`font-black text-lg ${m.quantity < 5 ? 'text-orange-500' : 'text-white'}`}>{m.quantity} m²</span>
+                </div>
+                <button onClick={() => setStockEntryMaterial(m)} className="p-2.5 bg-primary text-white rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20">
+                  <Plus size={18} />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-hidden shadow-xl">
+          <table className="w-full text-left">
+            <thead className="bg-white/5 border-b border-border-dark">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Material</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Dimensões (mm)</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Qtd</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Área Unit.</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Localização</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-dark">
+              {filteredRemnants.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500 italic">
+                    {remnants.length === 0 ? 'Nenhum retalho no inventário.' : 'Nenhum retalho encontrado para essa busca.'}
+                  </td>
+                </tr>
+              ) : filteredRemnants.map(r => (
+                <tr key={r.id} className="hover:bg-white/5 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm text-primary">{r.material_name}</span>
+                      <span className="text-[10px] text-slate-500 line-clamp-1">{r.observations || '-'}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-mono text-slate-300">
+                    {r.length} x {r.width}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="bg-white/5 border border-white/10 px-2 py-1 rounded text-xs font-bold">{r.quantity}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-400">
+                    {((r.length * r.width) / 1000000).toFixed(3)} m²
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <Layers size={12} className="text-primary" />
+                      {r.location || 'Não espec.'}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button 
+                      onClick={() => handleDeleteRemnant(r.id)}
+                      className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {remnants.length > 0 && (
+            <div className="bg-background-dark/50 p-4 border-t border-border-dark flex justify-between items-center text-xs">
+              <span className="text-slate-500 uppercase font-bold">Resumo do Inventário</span>
+              <div className="flex gap-6">
+                <div>
+                  <span className="text-slate-500">Total de Peças:</span>
+                  <span className="ml-2 font-bold text-primary">{remnants.reduce((acc, r) => acc + r.quantity, 0)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Área Total:</span>
+                  <span className="ml-2 font-bold text-primary">{remnants.reduce((acc, r) => acc + ((r.length * r.width * r.quantity) / 1000000), 0).toFixed(2)} m²</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stock Entry Modal */}
       <AnimatePresence>
@@ -1101,8 +1708,8 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
             >
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h3 className="text-xl font-bold">Entrada de Material</h3>
-                  <p className="text-slate-500 text-sm">{stockEntryMaterial.name}</p>
+                  <h3 className="text-xl font-bold text-primary">Entrada de Material</h3>
+                  <p className="text-slate-500 text-sm whitespace-nowrap overflow-hidden text-ellipsis">{stockEntryMaterial.name}</p>
                 </div>
                 <button onClick={() => setStockEntryMaterial(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                   <X size={20} />
@@ -1124,9 +1731,9 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
                   />
                 </div>
 
-                <div className="bg-white/5 p-4 rounded-xl flex justify-between items-center">
+                <div className="bg-white/5 p-4 rounded-xl flex justify-between items-center border border-white/5">
                   <span className="text-sm text-slate-400">Novo Estoque Estimado:</span>
-                  <span className="font-bold text-lg">
+                  <span className="font-black text-lg text-white">
                     {(stockEntryMaterial.quantity + (parseFloat(stockAmount) || 0)).toFixed(2)} m²
                   </span>
                 </div>
@@ -1135,13 +1742,13 @@ function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToas
                   <button
                     type="button"
                     onClick={() => setStockEntryMaterial(null)}
-                    className="flex-1 py-4 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
+                    className="flex-1 py-4 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors border border-transparent"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+                    className="flex-1 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30 hover:opacity-90 transition-opacity active:scale-[0.98]"
                   >
                     Confirmar Entrada
                   </button>

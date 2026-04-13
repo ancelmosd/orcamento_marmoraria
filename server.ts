@@ -17,7 +17,7 @@ const upload = multer({ dest: 'uploads/' });
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
@@ -42,14 +42,32 @@ async function startServer() {
         }
       });
       
-      const formatted = delayedQuotes.map(q => ({
+      const formattedDelayedQuotes = delayedQuotes.map(q => ({
         id: q.id,
+        type: 'quote_delay' as const,
         project_name: q.project_name,
         client_name: q.clients?.name,
         delivery_date: q.delivery_date
       }));
+
+      // Overdue payments
+      const overduePayments = await prisma.payments.findMany({
+        where: {
+          status: 'pendente',
+          due_date: { lt: new Date() }
+        },
+        include: { clients: true }
+      });
+
+      const formattedOverduePayments = overduePayments.map(p => ({
+        id: p.id,
+        type: 'payment_overdue' as const,
+        amount: p.amount,
+        client_name: p.clients?.name,
+        due_date: p.due_date?.toISOString()
+      }));
       
-      res.json(formatted);
+      res.json([...formattedDelayedQuotes, ...formattedOverduePayments]);
     } catch (e) {
       console.error(e);
       res.status(500).json([]);
@@ -67,13 +85,7 @@ async function startServer() {
       return Math.round(((current - previous) / previous) * 100);
     };
 
-    const [
-      pendingQuotes, pendingCurrent, pendingLast,
-      totalClients, clientsCurrent, clientsLast,
-      monthlyRevenue, revenueLast,
-      inProduction, prodCurrent, prodLast,
-      approvedQuotes, approvedCurrent, approvedLast
-    ] = await Promise.all([
+    const results = await Promise.all([
       prisma.quotes.count({ where: { status: 'Pendente' } }),
       prisma.quotes.count({ where: { status: 'Pendente', created_at: { gte: startOfMonth } } }),
       prisma.quotes.count({ where: { status: 'Pendente', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }),
@@ -98,7 +110,29 @@ async function startServer() {
       prisma.quotes.count({ where: { status: 'Aprovado' } }),
       prisma.quotes.count({ where: { status: 'Aprovado', created_at: { gte: startOfMonth } } }),
       prisma.quotes.count({ where: { status: 'Aprovado', created_at: { gte: startOfLastMonth, lt: startOfMonth } } }),
+
+      prisma.payments.aggregate({
+        _sum: { amount: true },
+        where: { status: 'pendente', due_date: { gte: now } }
+      }),
+      prisma.payments.aggregate({
+        _sum: { amount: true },
+        where: { status: 'pendente', due_date: { lt: now } }
+      }),
+      prisma.payments.aggregate({
+        _sum: { amount: true },
+        where: { status: 'pago' }
+      })
     ]);
+
+    const [
+      pendingQuotes, pendingCurrent, pendingLast,
+      totalClients, clientsCurrent, clientsLast,
+      monthlyRevenue, revenueLast,
+      inProduction, prodCurrent, prodLast,
+      approvedQuotes, approvedCurrent, approvedLast,
+      receivableAgg, overdueAgg, receivedAgg
+    ] = results;
 
     res.json({
       pendingQuotes,
@@ -110,7 +144,10 @@ async function startServer() {
       monthlyRevenue: monthlyRevenue._sum.total_value || 0,
       monthlyRevenueTrend: calculateTrend(monthlyRevenue._sum.total_value || 0, (revenueLast._sum.total_value as any) || 0),
       inProduction,
-      inProductionTrend: calculateTrend(prodCurrent, prodLast)
+      inProductionTrend: calculateTrend(prodCurrent, prodLast),
+      totalReceivable: receivableAgg._sum.amount || 0,
+      totalOverdue: overdueAgg._sum.amount || 0,
+      totalReceived: receivedAgg._sum.amount || 0
     });
   });
 
@@ -129,6 +166,14 @@ async function startServer() {
     res.json({ id: client.id });
   });
 
+  app.get("/api/clients/:id", async (req, res) => {
+    const { id } = req.params;
+    const client = await prisma.clients.findUnique({
+      where: { id: parseInt(id) }
+    });
+    res.json(client);
+  });
+
   app.put("/api/clients/:id", async (req, res) => {
     const { id } = req.params;
     const { name, document, phone, address } = req.body;
@@ -144,6 +189,46 @@ async function startServer() {
     await prisma.clients.delete({
       where: { id: parseInt(id) }
     });
+    res.json({ success: true });
+  });
+
+  app.get("/api/payments", async (req, res) => {
+    const { client_id } = req.query;
+    const payments = await prisma.payments.findMany({
+      where: { client_id: parseInt(client_id as string) },
+      orderBy: { created_at: 'desc' }
+    });
+    res.json(payments);
+  });
+
+  app.post("/api/payments", async (req, res) => {
+    const { client_id, amount, due_date, payment_date, status, description } = req.body;
+    const payment = await prisma.payments.create({
+      data: {
+        client_id: parseInt(client_id),
+        amount,
+        due_date: due_date ? new Date(due_date) : null,
+        payment_date: payment_date ? new Date(payment_date) : null,
+        status,
+        description
+      }
+    });
+    res.json(payment);
+  });
+
+  app.patch("/api/payments/:id", async (req, res) => {
+    const { id } = req.params;
+    const { status, payment_date, description } = req.body;
+    await prisma.payments.update({
+      where: { id: parseInt(id) },
+      data: { status, payment_date: payment_date ? new Date(payment_date) : undefined, description }
+    });
+    res.json({ success: true });
+  });
+
+  app.delete("/api/payments/:id", async (req, res) => {
+    const { id } = req.params;
+    await prisma.payments.delete({ where: { id: parseInt(id) } });
     res.json({ success: true });
   });
 
@@ -182,6 +267,42 @@ async function startServer() {
   app.delete("/api/materials/:id", async (req, res) => {
     const { id } = req.params;
     await prisma.materials.delete({
+      where: { id: parseInt(id) }
+    });
+    res.json({ success: true });
+  });
+  
+  app.get("/api/remnants", async (req, res) => {
+    const remnants = await prisma.remnants.findMany({
+      include: {
+        materials: true
+      },
+      orderBy: { created_at: 'desc' }
+    });
+    res.json(remnants.map(r => ({
+      ...r,
+      material_name: r.materials?.name
+    })));
+  });
+
+  app.post("/api/remnants", async (req, res) => {
+    const { material_id, width, length, quantity, location, observations } = req.body;
+    const remnant = await prisma.remnants.create({
+      data: {
+        material_id: parseInt(material_id),
+        width: parseFloat(width),
+        length: parseFloat(length),
+        quantity: parseInt(quantity) || 1,
+        location,
+        observations
+      }
+    });
+    res.json(remnant);
+  });
+
+  app.delete("/api/remnants/:id", async (req, res) => {
+    const { id } = req.params;
+    await prisma.remnants.delete({
       where: { id: parseInt(id) }
     });
     res.json({ success: true });
@@ -244,7 +365,11 @@ async function startServer() {
   });
 
   app.get("/api/quotes", async (req, res) => {
+    const { client_id } = req.query;
+    const where = client_id ? { client_id: parseInt(client_id as string) } : {};
+    
     const quotesList = await prisma.quotes.findMany({
+      where,
       include: {
         clients: true
       },
