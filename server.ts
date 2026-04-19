@@ -19,13 +19,18 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // API Routes
   app.get("/api/notifications", async (req, res) => {
     try {
       const today = new Date().toISOString().split('T')[0];
       
+      // Buscar notificações dispensadas
+      const dismissed = await prisma.dismissed_notifications.findMany();
+      const dismissedKeys = new Set(dismissed.map(d => d.notification_key));
+
       const delayedQuotes = await prisma.quotes.findMany({
         where: {
           status: { notIn: ['Entregue', 'Cancelado'] },
@@ -67,10 +72,48 @@ async function startServer() {
         due_date: p.due_date?.toISOString()
       }));
       
-      res.json([...formattedDelayedQuotes, ...formattedOverduePayments]);
+      // Filtrar notificações dispensadas
+      const allNotifications = [...formattedDelayedQuotes, ...formattedOverduePayments];
+      const filtered = allNotifications.filter(n => !dismissedKeys.has(`${n.type}-${n.id}`));
+
+      res.json(filtered);
     } catch (e) {
       console.error(e);
       res.status(500).json([]);
+    }
+  });
+
+  // Dispensar notificação individual
+  app.post("/api/notifications/dismiss", async (req, res) => {
+    try {
+      const { key } = req.body;
+      await prisma.dismissed_notifications.upsert({
+        where: { notification_key: key },
+        update: {},
+        create: { notification_key: key }
+      });
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Erro ao dispensar notificação' });
+    }
+  });
+
+  // Dispensar todas as notificações
+  app.post("/api/notifications/dismiss-all", async (req, res) => {
+    try {
+      const { keys } = req.body;
+      for (const key of keys) {
+        await prisma.dismissed_notifications.upsert({
+          where: { notification_key: key },
+          update: {},
+          create: { notification_key: key }
+        });
+      }
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Erro ao dispensar notificações' });
     }
   });
 
@@ -426,6 +469,46 @@ async function startServer() {
       res.json([]);
     }
   });
+  // Fotos de Orçamentos
+  app.get("/api/quotes/:id/photos", async (req, res) => {
+    const { id } = req.params;
+    try {
+      const photos = await prisma.quote_photos.findMany({
+        where: { quote_id: parseInt(id) },
+        orderBy: { created_at: 'desc' }
+      });
+      res.json(photos);
+    } catch (e) {
+      res.status(500).json({ error: 'Erro ao buscar fotos' });
+    }
+  });
+
+  app.post("/api/quotes/:id/photos", async (req, res) => {
+    const { id } = req.params;
+    const { url, description } = req.body;
+    try {
+      const photo = await prisma.quote_photos.create({
+        data: {
+          quote_id: parseInt(id),
+          url,
+          description
+        }
+      });
+      res.json(photo);
+    } catch (e) {
+      res.status(500).json({ error: 'Erro ao salvar foto' });
+    }
+  });
+
+  app.delete("/api/photos/:id", async (req, res) => {
+    const { id } = req.params;
+    try {
+      await prisma.quote_photos.delete({ where: { id: parseInt(id) } });
+      res.json({ success: true });
+    } catch (e) {
+      res.status(500).json({ error: 'Erro ao deletar foto' });
+    }
+  });
 
   app.post("/api/quotes", async (req, res) => {
     const { client_id, project_name, total_value, discount, delivery_date, items, services } = req.body;
@@ -637,19 +720,19 @@ async function startServer() {
   });
 
   app.post("/api/supplies", async (req, res) => {
-    const { name, price_per_meter, minutes_per_meter } = req.body;
+    const { name, price_per_meter, minutes_per_meter, unit } = req.body;
     const supply = await prisma.supplies.create({
-      data: { name, price_per_meter, minutes_per_meter }
+      data: { name, price_per_meter, minutes_per_meter, unit: unit || 'm' }
     });
     res.json({ id: supply.id });
   });
 
   app.put("/api/supplies/:id", async (req, res) => {
     const { id } = req.params;
-    const { name, price_per_meter, minutes_per_meter } = req.body;
+    const { name, price_per_meter, minutes_per_meter, unit } = req.body;
     await prisma.supplies.update({
       where: { id: parseInt(id) },
-      data: { name, price_per_meter, minutes_per_meter }
+      data: { name, price_per_meter, minutes_per_meter, unit: unit || 'm' }
     });
     res.json({ success: true });
   });

@@ -101,6 +101,7 @@ export interface ModulePartService {
 export interface ModulePartSupply {
   supply_id: number;
   sides: ('top' | 'bottom' | 'left' | 'right')[];
+  quantity_per_unit?: number;
 }
 
 export interface Supply {
@@ -108,6 +109,7 @@ export interface Supply {
   name: string;
   price_per_meter: number;
   minutes_per_meter: number;
+  unit: string;
 }
 
 export interface ModulePart {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -36,7 +36,8 @@ import {
   ClipboardList,
   CalendarCheck,
   ArrowLeft,
-  Clock
+  Clock,
+  MessageCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
@@ -45,6 +46,12 @@ import * as html2canvasModule from 'html2canvas';
 const html2canvas = (html2canvasModule as any).default || html2canvasModule;
 import { Client, Material, Quote, DashboardStats, Service, ModuleTemplate, ModulePart, ModulePartService, Supply, ModulePartSupply } from './types';
 import { generateQuotePDF } from './utils/pdfGenerator';
+import { Toast } from './components/Toast';
+import { NotificationDropdown } from './components/NotificationDropdown';
+import { PhotoGallery } from './components/PhotoGallery';
+import { NavItem } from './components/NavItem';
+import { DashboardView } from './components/DashboardView';
+import { HistoryView } from './components/HistoryView';
 
 // Mock data for initial render
 const MOCK_STATS: DashboardStats = {
@@ -179,6 +186,7 @@ export default function App() {
             setActiveTab('quotes');
           }}
           showToast={showToast}
+          generateQuotePDF={generateQuotePDF}
         />
       );
       case 'settings': return <SettingsView showToast={showToast} />;
@@ -257,67 +265,36 @@ export default function App() {
                   <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-secondary-dark"></span>
                 )}
               </button>
-
-              <AnimatePresence>
-                {showNotifications && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-80 bg-secondary-dark border border-border-dark shadow-2xl rounded-xl z-50 overflow-hidden"
-                  >
-                    <div className="p-3 border-b border-border-dark font-bold flex justify-between items-center bg-background-dark/50">
-                      <span>Avisos de Atraso</span>
-                      {notifications.length > 0 && (
-                        <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">{notifications.length}</span>
-                      )}
-                    </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <div className="p-8 flex flex-col items-center text-center text-slate-500 gap-2">
-                          <CheckSquare className="w-8 h-8 text-emerald-500/50" />
-                          <p className="text-sm">Tudo em dia!</p>
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-border-dark">
-                          {notifications.map(n => (
-                            <div
-                              key={`${n.type}-${n.id}`}
-                              className="p-4 hover:bg-white/5 cursor-pointer flex flex-col gap-1 transition-colors"
-                              onClick={() => {
-                                if (n.type === 'quote_delay') {
-                                  setEditQuoteId(n.id);
-                                  setActiveTab('quotes');
-                                } else {
-                                  setActiveTab('clients');
-                                }
-                                setShowNotifications(false);
-                              }}
-                            >
-                              <div className="flex justify-between items-start">
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${n.type === 'payment_overdue' ? 'bg-orange-500/10 text-orange-400' : 'bg-red-500/10 text-red-400'}`}>
-                                  {n.type === 'payment_overdue' ? 'Pagamento Atrasado' : 'Entrega Atrasada'}
-                                </span>
-                                <span className="text-[10px] font-mono text-slate-500">#{n.id}</span>
-                              </div>
-                              <p className="text-sm font-bold mt-1 text-slate-100">{n.client_name}</p>
-                              <div className="flex justify-between items-center mt-1">
-                                <p className="text-xs text-slate-400 truncate max-w-[150px]">
-                                  {n.type === 'payment_overdue' ? `Valor: R$ ${n.amount?.toLocaleString()}` : n.project_name}
-                                </p>
-                                <p className="text-[10px] font-bold text-slate-500">
-                                  {n.due_date ? new Date(n.due_date).toLocaleDateString('pt-BR') : (n.delivery_date?.split('-').reverse().join('/'))}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <NotificationDropdown
+                show={showNotifications}
+                notifications={notifications}
+                onClose={() => setShowNotifications(false)}
+                onItemClick={(n) => {
+                  if (n.type === 'quote_delay') {
+                    setEditQuoteId(n.id);
+                    setActiveTab('quotes');
+                  } else {
+                    setActiveTab('clients');
+                  }
+                  setShowNotifications(false);
+                }}
+                onDismiss={async (key) => {
+                  await fetch('/api/notifications/dismiss', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key })
+                  });
+                }}
+                onDismissAll={async (keys) => {
+                  await fetch('/api/notifications/dismiss-all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keys })
+                  });
+                }}
+                showToast={showToast}
+                setNotifications={setNotifications}
+              />
             </div>
 
             <div className="flex items-center gap-3 border-l border-border-dark pl-4">
@@ -363,258 +340,17 @@ export default function App() {
         </div>
 
         {/* Toast Notification */}
-        <AnimatePresence>
-          {toast && (
-            <motion.div
-              initial={{ opacity: 0, y: 50, x: '-50%' }}
-              animate={{ opacity: 1, y: 0, x: '-50%' }}
-              exit={{ opacity: 0, y: 20, x: '-50%' }}
-              className={`fixed bottom-8 left-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-3 border ${toast.type === 'success'
-                ? 'bg-emerald-500 text-white border-emerald-400'
-                : 'bg-red-500 text-white border-red-400'
-                }`}
-            >
-              {toast.type === 'success' ? <CheckSquare size={20} /> : <X size={20} />}
-              {toast.message}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <Toast toast={toast} />
       </main>
     </div>
   );
 }
 
-function NavItem({ icon, label, active, onClick, collapsed }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, collapsed: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all group ${active
-        ? 'bg-primary text-white shadow-lg shadow-primary/20'
-        : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
-        }`}
-    >
-      <span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-primary'} transition-colors`}>
-        {React.cloneElement(icon as React.ReactElement, { size: 20 })}
-      </span>
-      {!collapsed && <span className="font-medium text-sm whitespace-nowrap">{label}</span>}
-    </button>
-  );
-}
+
 
 // --- Views ---
 
-function DashboardView({ stats, onAction }: { stats: DashboardStats, onAction: (action: string) => void }) {
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [quotes, setQuotes] = useState<any[]>([]);
 
-  useEffect(() => {
-    fetch('/api/materials')
-      .then(res => res.json())
-      .then(data => {
-        const sorted = [...data].sort((a, b) => a.quantity - b.quantity);
-        setMaterials(sorted.slice(0, 3));
-      })
-      .catch(err => console.error("Error fetching materials for dashboard:", err));
-
-    fetch('/api/quotes')
-      .then(res => res.json())
-      .then(data => {
-        const sorted = [...data].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setQuotes(sorted.slice(0, 5));
-      })
-      .catch(err => console.error("Error fetching quotes for dashboard:", err));
-  }, []);
-
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-1">
-        <p className="text-primary text-sm font-semibold uppercase tracking-wider">Painel Administrativo</p>
-        <h1 className="text-4xl font-black tracking-tight">Visão Geral</h1>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Orçamentos Pendentes" value={stats.pendingQuotes} trend={stats.pendingQuotesTrend} icon={<History />} color="primary" />
-        <StatCard label="Orçamentos Aprovados" value={stats.approvedQuotes} trend={stats.approvedQuotesTrend} icon={<CheckSquare />} color="emerald" />
-        <StatCard label="Total de Clientes" value={stats.totalClients} trend={stats.totalClientsTrend} icon={<Users />} color="blue" />
-        <StatCard label="Faturamento Mensal" value={`R$ ${(stats.monthlyRevenue || 0).toLocaleString()}`} trend={stats.monthlyRevenueTrend} icon={<Calculator />} color="emerald" />
-        <StatCard label="Em Produção" value={stats.inProduction} trend={stats.inProductionTrend} icon={<Construction />} color="yellow" />
-        <StatCard label="Total A Receber" value={`R$ ${(stats.totalReceivable || 0).toLocaleString()}`} icon={<Clock />} color="blue" />
-        <StatCard label="Total Em Atraso" value={`R$ ${(stats.totalOverdue || 0).toLocaleString()}`} icon={<Bell />} color="orange" />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1 space-y-6">
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <Bolt className="text-primary w-5 h-5" /> Atalhos Rápidos
-          </h2>
-          <div className="space-y-3">
-            <ShortcutButton icon={<Users />} label="Novo Cliente" sub="Cadastrar novo contato" onClick={() => onAction('new-client')} />
-            <ShortcutButton icon={<Package />} label="Entrada de Material" sub="Atualizar estoque" onClick={() => onAction('material-entry')} />
-            <ShortcutButton icon={<Calculator />} label="Novo Orçamento" sub="Gerar calculadora" onClick={() => onAction('new-quote')} />
-          </div>
-
-          <div className="p-6 rounded-xl bg-primary/5 border border-primary/10">
-            <h3 className="font-bold mb-4 flex items-center gap-2">
-              <Info className="text-primary w-4 h-4" /> Status do Estoque
-            </h3>
-            <div className="space-y-4">
-              {materials.length === 0 ? (
-                <p className="text-xs text-slate-500">Nenhum material cadastrado.</p>
-              ) : materials.map(m => (
-                <StockProgress
-                  key={m.id}
-                  label={m.name}
-                  value={Math.min(100, (m.quantity / 50) * 100)}
-                  amount={`${m.quantity} m²`}
-                  color={m.quantity < 10 ? 'orange' : 'primary'}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Calculator className="text-primary w-5 h-5" /> Últimos Orçamentos
-            </h2>
-            <button onClick={() => onAction('view-history')} className="text-primary text-sm font-bold hover:underline">Ver todos</button>
-          </div>
-          <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
-            <table className="w-full text-left min-w-[600px]">
-              <thead className="bg-white/5">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Cliente</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Data</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Valor</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-dark">
-                {quotes.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500 text-sm">Nenhum orçamento recente.</td>
-                  </tr>
-                ) : quotes.map(q => (
-                  <TableRow
-                    key={q.id}
-                    client={q.client_name}
-                    project={q.project_name}
-                    date={new Date(q.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                    value={`R$ ${q.total_value.toLocaleString()}`}
-                    status={q.status}
-                    onEdit={() => onAction(`edit-quote-${q.id}`)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, trend, icon, color }: { label: string, value: any, trend: number, icon: any, color: string }) {
-  const colors: any = {
-    primary: 'text-primary bg-primary/10',
-    blue: 'text-blue-500 bg-blue-500/10',
-    emerald: 'text-emerald-500 bg-emerald-500/10',
-    orange: 'text-orange-500 bg-orange-500/10',
-    yellow: 'text-yellow-400 bg-yellow-400/10'
-  };
-
-  const isPositive = trend > 0;
-  const isNegative = trend < 0;
-  const trendText = trend === 0 ? 'Estável' : `${isPositive ? '+' : ''}${trend}%`;
-
-  return (
-    <div className="bg-secondary-dark p-1 rounded-xl border border-border-dark shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-2 rounded-lg ${colors[color]}`}>
-          {React.cloneElement(icon, { size: 20 })}
-        </div>
-        <div className="flex flex-col items-end">
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${isPositive ? 'text-emerald-500 bg-emerald-500/10' : isNegative ? 'text-red-500 bg-red-500/10' : 'text-slate-400 bg-slate-400/10'}`}>
-            {trendText}
-          </span>
-          <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter mt-0.5">vs mês passado</span>
-        </div>
-      </div>
-      <p className="text-slate-500 text-sm font-medium">{label}</p>
-      <p className="text-3xl font-bold mt-1">{value}</p>
-    </div>
-  );
-}
-
-function ShortcutButton({ icon, label, sub, onClick }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-4 p-4 rounded-xl bg-secondary-dark border border-border-dark hover:border-primary transition-all text-left group"
-    >
-      <div className="size-12 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-white transition-colors">
-        {React.cloneElement(icon, { size: 24 })}
-      </div>
-      <div>
-        <p className="font-bold text-sm">{label}</p>
-        <p className="text-slate-500 text-xs">{sub}</p>
-      </div>
-    </button>
-  );
-}
-
-function StockProgress({ label, value, amount, color = 'primary' }: any) {
-  return (
-    <div>
-      <div className="flex justify-between text-xs mb-1">
-        <span className="text-slate-400">{label}</span>
-        <span className={`font-semibold ${color === 'orange' ? 'text-orange-500' : 'text-white'}`}>{amount}</span>
-      </div>
-      <div className="w-full bg-white/5 h-1.5 rounded-full">
-        <div className={`h-1.5 rounded-full ${color === 'orange' ? 'bg-orange-500' : 'bg-primary'}`} style={{ width: `${value}%` }}></div>
-      </div>
-    </div>
-  );
-}
-
-function TableRow({ client, project, date, value, status, onEdit }: any) {
-  const statusColors: any = {
-    'Pendente': 'text-orange-500 bg-orange-500/10',
-    'Aprovado': 'text-emerald-500 bg-emerald-500/10',
-    'Em Produção': 'text-yellow-400 bg-yellow-400/10',
-    'Entregue': 'text-indigo-500 bg-indigo-500/10',
-    'Cancelado': 'text-red-500 bg-red-500/10',
-    'Enviado': 'bg-blue-500/10 text-blue-400',
-    'Rascunho': 'bg-slate-500/10 text-slate-400'
-  };
-  return (
-    <tr
-      className="hover:bg-white/5 transition-colors group cursor-pointer"
-      onClick={onEdit}
-    >
-      <td className="px-6 py-4">
-        <div className="flex flex-col">
-          <span className="font-bold text-sm">{client}</span>
-          <span className="text-slate-500 text-xs">{project}</span>
-        </div>
-      </td>
-      <td className="px-6 py-4 text-slate-400 text-sm">{date}</td>
-      <td className="px-6 py-4 font-bold text-sm">{value}</td>
-      <td className="px-6 py-4">
-        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusColors[status] || 'text-slate-500 bg-slate-500/10'}`}>{status}</span>
-      </td>
-      <td className="px-6 py-4 text-right">
-        <div className="flex justify-end">
-          <div className="p-1.5 bg-white/5 rounded-md group-hover:bg-primary group-hover:text-white transition-colors text-primary">
-            <Settings size={14} />
-          </div>
-        </div>
-      </td>
-    </tr>
-  );
-}
 
 // --- Placeholder Views ---
 
@@ -1176,16 +912,32 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
               ) : (
                 <div className="grid gap-4">
                   {orders.map(order => (
-                    <div key={order.id} className="bg-background-dark/50 p-4 rounded-xl border border-border-dark flex justify-between items-center hover:bg-white/5 transition-colors">
+                    <div key={order.id} className="bg-background-dark/50 p-4 rounded-xl border border-border-dark flex justify-between items-center hover:bg-white/5 transition-colors group">
                       <div>
                         <p className="font-bold">{order.project_name}</p>
                         <p className="text-xs text-slate-500">#{order.id} • {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-black text-primary">R$ {order.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${order.status === 'Aprovado' ? 'bg-emerald-500/10 text-emerald-400' :
-                          order.status === 'Enviado' ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-500/10 text-slate-400'
-                          }`}>{order.status}</span>
+                      <div className="flex items-center gap-4">
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const phone = client?.phone?.replace(/\D/g, '');
+                              const message = encodeURIComponent(`Olá ${client?.name}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${order.project_name}\n*Valor:* R$ ${order.total_value.toLocaleString()}\n*Status:* ${order.status}\n\nFicamos à disposição!`);
+                              window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
+                            }}
+                            className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all"
+                            title="Enviar via WhatsApp"
+                          >
+                            <MessageCircle size={14} />
+                          </button>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-black text-primary">R$ {order.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${order.status === 'Aprovado' ? 'bg-emerald-500/10 text-emerald-400' :
+                            order.status === 'Enviado' ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-500/10 text-slate-400'
+                            }`}>{order.status}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2398,6 +2150,13 @@ function QuotesView({ editId, onSave, onCancel, showToast }: { editId?: number |
               )}
             </div>
           </div>
+
+          {/* Galeria de Fotos (Apenas se estiver editando) */}
+          {editId && (
+            <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
+              <PhotoGallery quoteId={editId} showToast={showToast} />
+            </div>
+          )}
         </div>
 
         <datalist id="description-templates">
@@ -2446,456 +2205,8 @@ function SummaryItem({ label, value }: any) {
   );
 }
 
-function HistoryView({ searchTerm, onEdit, showToast }: { searchTerm: string, onEdit: (id: number) => void, showToast: (m: string, t?: 'success' | 'error') => void }) {
-  const [quotes, setQuotes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<any | null>(null);
-  const [quoteToDelete, setQuoteToDelete] = useState<number | null>(null);
 
-  const fetchQuotes = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/quotes');
-      const data = await res.json();
-      setQuotes(data);
-    } catch (err) {
-      console.error("Error fetching quotes:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchQuotes();
-  }, []);
-
-  const filteredQuotes = quotes.filter((quote) =>
-    !searchTerm || [
-      quote.id,
-      quote.client_name,
-      quote.project_name,
-      quote.status,
-      quote.total_value,
-      quote.created_at
-    ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
-  );
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Pendente': return 'text-orange-500 bg-orange-500/10';
-      case 'Aprovado': return 'text-emerald-500 bg-emerald-500/10';
-      case 'Em Produção': return 'text-yellow-400 bg-yellow-400/10';
-      case 'Entregue': return 'text-indigo-500 bg-indigo-500/10';
-      case 'Cancelado': return 'text-red-500 bg-red-500/10';
-      default: return 'text-slate-500 bg-slate-500/10';
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      const res = await fetch(`/api/quotes/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        showToast("Orçamento excluído.");
-        fetchQuotes();
-        setQuoteToDelete(null);
-      } else {
-        showToast("Erro ao excluir orçamento.", "error");
-      }
-    } catch (error) {
-      showToast("Erro de conexão.", "error");
-    }
-  };
-
-  const fetchQuoteDetails = async (id: number) => {
-    try {
-      const res = await fetch(`/api/quotes/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSelectedQuoteDetails(data);
-      } else {
-        showToast("Erro ao carregar detalhes.", "error");
-      }
-    } catch (error) {
-      showToast("Erro de conexão.", "error");
-    }
-  };
-
-  const updateStatus = async (id: number, status: string) => {
-    try {
-      const res = await fetch(`/api/quotes/${id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      if (res.ok) {
-        showToast(`Status atualizado para ${status}`);
-        fetchQuotes();
-      } else {
-        showToast("Erro ao atualizar status.", "error");
-      }
-    } catch (error) {
-      showToast("Erro de conexão.", "error");
-    }
-  };
-
-  return (
-    <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-black tracking-tight">Histórico de Orçamentos</h1>
-        <p className="text-slate-500">Visualize e gerencie todos os orçamentos gerados.</p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:hidden">
-        {loading ? (
-          <p className="text-center py-8 text-slate-500">Carregando...</p>
-        ) : quotes.length === 0 ? (
-          <p className="text-center py-8 text-slate-500">Nenhum orçamento encontrado.</p>
-        ) : filteredQuotes.length === 0 ? (
-          <p className="text-center py-8 text-slate-500">Nenhum orçamento encontrado para essa busca.</p>
-        ) : (
-          filteredQuotes.map(quote => (
-            <div
-              key={quote.id}
-              className="bg-secondary-dark p-4 rounded-xl border border-border-dark space-y-3"
-              onClick={() => onEdit(quote.id)}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-xs font-mono text-slate-500">#{quote.id}</span>
-                  <h3 className="font-bold text-sm">{quote.client_name}</h3>
-                  <p className="text-xs text-slate-400">{quote.project_name}</p>
-                  {quote.delivery_date && <p className="text-[10px] font-bold text-emerald-400 mt-1 uppercase">Entrega: {quote.delivery_date.split('-').reverse().join('/')}</p>}
-                </div>
-                <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${getStatusColor(quote.status)}`}>
-                  {quote.status}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-white/5">
-                <span className="text-primary font-bold">R$ {quote.total_value.toLocaleString()}</span>
-                <span className="text-xs text-slate-500">{new Date(quote.created_at).toLocaleDateString('pt-BR')}</span>
-              </div>
-              <div className="flex gap-2 pt-2" onClick={e => e.stopPropagation()}>
-                <select
-                  value={quote.status}
-                  onChange={(e) => updateStatus(quote.id, e.target.value)}
-                  className="flex-1 bg-white/5 border border-border-dark rounded-lg px-2 py-2 text-[10px] font-bold uppercase outline-none"
-                >
-                  <option value="Pendente">Pendente</option>
-                  <option value="Aprovado">Aprovado</option>
-                  <option value="Em Produção">Em Produção</option>
-                  <option value="Entregue">Entregue</option>
-                  <option value="Cancelado">Cancelado</option>
-                </select>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fetchQuoteDetails(quote.id);
-                  }}
-                  className="p-2 bg-white/5 text-slate-400 rounded-lg border border-border-dark"
-                >
-                  <Info size={16} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setQuoteToDelete(quote.id);
-                  }}
-                  className="p-2 bg-red-500/10 text-red-400 rounded-lg border border-red-500/20"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="hidden md:block bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="border-b border-border-dark bg-white/5">
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">ID</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Cliente</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Projeto</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Data</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Valor</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Data Entrega</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-dark">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">Carregando orçamentos...</td>
-              </tr>
-            ) : quotes.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">Nenhum orçamento encontrado.</td>
-              </tr>
-            ) : filteredQuotes.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-slate-500">Nenhum orçamento encontrado para essa busca.</td>
-              </tr>
-            ) : (
-              filteredQuotes.map((quote) => (
-                <tr
-                  key={quote.id}
-                  className="hover:bg-white/5 transition-colors group cursor-pointer"
-                  onClick={() => onEdit(quote.id)}
-                >
-                  <td className="px-6 py-4 text-sm font-mono text-slate-500">#{quote.id}</td>
-                  <td className="px-6 py-4 text-sm font-bold">{quote.client_name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-300">{quote.project_name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">
-                    {new Date(quote.created_at).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-bold text-primary">
-                    R$ {quote.total_value.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${getStatusColor(quote.status)}`}>
-                        {quote.status}
-                      </span>
-                      <select
-                        value={quote.status}
-                        onChange={(e) => updateStatus(quote.id, e.target.value)}
-                        className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-500 outline-none cursor-pointer hover:text-white transition-colors"
-                      >
-                        <option value="Pendente">Pendente</option>
-                        <option value="Aprovado">Aprovado</option>
-                        <option value="Em Produção">Em Produção</option>
-                        <option value="Entregue">Entregue</option>
-                        <option value="Cancelado">Cancelado</option>
-                      </select>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-300">
-                    {quote.delivery_date ? quote.delivery_date.split('-').reverse().join('/') : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-end gap-2 transition-opacity">
-                      <button
-                        onClick={() => onEdit(quote.id)}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
-                        title="Editar Orçamento"
-                      >
-                        <Settings size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          fetchQuoteDetails(quote.id);
-                        }}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-slate-400"
-                        title="Ver Detalhes"
-                      >
-                        <Info size={14} />
-                      </button>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            const res = await fetch(`/api/quotes/${quote.id}`);
-                            if (res.ok) {
-                              const fullQuote = await res.json();
-                              generateQuotePDF(fullQuote);
-                              showToast("PDF gerado com sucesso!");
-                            } else {
-                              showToast("Erro ao buscar dados do orçamento.", "error");
-                            }
-                          } catch (err) {
-                            console.error('PDF Generation Error:', err);
-                            showToast("Erro ao gerar PDF.", "error");
-                          }
-                        }}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-emerald-400"
-                        title="Exportar PDF"
-                      >
-                        <FileDown size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuoteToDelete(quote.id);
-                        }}
-                        className="p-1.5 bg-red-500/10 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400 border border-red-500/20"
-                        title="Excluir"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <AnimatePresence>
-        {quoteToDelete && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-secondary-dark border border-border-dark rounded-2xl p-6 max-w-sm w-full shadow-2xl"
-            >
-              <div className="flex items-center gap-4 text-red-400 mb-4">
-                <div className="bg-red-400/10 p-3 rounded-xl">
-                  <X size={24} />
-                </div>
-                <h3 className="text-xl font-bold">Excluir Orçamento?</h3>
-              </div>
-              <p className="text-slate-400 text-sm mb-6">
-                Esta ação não pode ser desfeita. O orçamento #{quoteToDelete} será removido permanentemente do histórico.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setQuoteToDelete(null)}
-                  className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-sm font-bold transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => handleDelete(quoteToDelete)}
-                  className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-xl text-sm font-bold transition-colors"
-                >
-                  Excluir
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {selectedQuoteDetails && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="bg-secondary-dark border border-border-dark rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
-            >
-              <div className="p-6 border-b border-border-dark flex justify-between items-center bg-white/5">
-                <div>
-                  <h3 className="text-xl font-bold">Detalhes do Orçamento #{selectedQuoteDetails.id}</h3>
-                  <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mt-1">
-                    {selectedQuoteDetails.client_name} • {selectedQuoteDetails.project_name}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedQuoteDetails(null)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <Layers size={18} />
-                    <h4 className="font-bold uppercase text-xs tracking-widest">Peças e Materiais</h4>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    {selectedQuoteDetails.items?.map((item: any) => (
-                      <div key={item.id} className="bg-background-dark/50 border border-border-dark rounded-xl p-4 flex justify-between items-center">
-                        <div>
-                          <p className="font-bold text-sm">{item.description || 'Peça sem descrição'}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] font-mono text-slate-500">
-                              {item.width} x {item.length} mm
-                            </span>
-                            <span className="text-slate-700">•</span>
-                            <span className="text-[10px] font-bold text-primary uppercase">
-                              Qtd: {item.quantity}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-bold text-slate-400">{(item.subtotal_m2 || 0).toFixed(3)} m²</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary">
-                    <Construction size={18} />
-                    <h4 className="font-bold uppercase text-xs tracking-widest">Serviços e Acabamentos</h4>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    {selectedQuoteDetails.services?.map((service: any) => (
-                      <div key={service.id} className="bg-background-dark/50 border border-border-dark rounded-xl p-4 flex justify-between items-center">
-                        <div>
-                          <p className="font-bold text-sm">{service.description || 'Serviço sem descrição'}</p>
-                          <p className="text-[10px] text-slate-500 mt-1">
-                            Qtd: {service.quantity.toFixed(2)} • Un: R$ {service.unit_price.toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-primary">R$ {(service.quantity * service.unit_price).toLocaleString()}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-border-dark flex justify-between items-end">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Data de Criação</p>
-                    <p className="text-sm font-bold">{new Date(selectedQuoteDetails.created_at).toLocaleString('pt-BR')}</p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Valor Total</p>
-                    <p className="text-3xl font-black text-primary">R$ {selectedQuoteDetails.total_value.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
-                <button
-                  onClick={() => {
-                    try {
-                      generateQuotePDF(selectedQuoteDetails);
-                      showToast("PDF gerado com sucesso!");
-                    } catch (err) {
-                      console.error('PDF Generation Error:', err);
-                      showToast("Erro ao gerar PDF.", "error");
-                    }
-                  }}
-                  className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <FileDown size={18} /> Exportar PDF
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedQuoteDetails(null);
-                    onEdit(selectedQuoteDetails.id);
-                  }}
-                  className="flex-1 bg-primary text-white py-3 rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Settings size={18} /> Editar Orçamento
-                </button>
-                <button
-                  onClick={() => setSelectedQuoteDetails(null)}
-                  className="px-8 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm transition-colors"
-                >
-                  Fechar
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
 function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [templates, setTemplates] = useState<{ id: number, text: string }[]>([]);
@@ -2908,7 +2219,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
   const [isSupplyModalOpen, setIsSupplyModalOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Partial<ModuleTemplate>>({ name: '', description: '', parts: [] });
   const [editingService, setEditingService] = useState<Partial<Service>>({ name: '', price: 0, description: '', category: 'other' });
-  const [editingSupply, setEditingSupply] = useState<Partial<Supply>>({ name: '', price_per_meter: 0, minutes_per_meter: 0 });
+  const [editingSupply, setEditingSupply] = useState<Partial<Supply>>({ name: '', price_per_meter: 0, minutes_per_meter: 0, unit: 'm' });
 
   const fetchTemplates = () => {
     fetch('/api/description-templates').then(r => r.json()).then(setTemplates);
@@ -3242,7 +2553,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
             </h3>
             <button
               onClick={() => {
-                setEditingSupply({ name: '', price_per_meter: 0, minutes_per_meter: 0 });
+                setEditingSupply({ name: '', price_per_meter: 0, minutes_per_meter: 0, unit: 'm' });
                 setIsSupplyModalOpen(true);
               }}
               className="bg-primary/10 text-primary p-2 rounded-lg hover:bg-primary hover:text-white transition-all"
@@ -3260,8 +2571,9 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                 <div className="flex flex-col">
                   <span className="text-sm font-bold">{s.name}</span>
                   <div className="flex gap-2 text-[10px] text-slate-500">
-                    <span>R$ {s.price_per_meter.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/m</span>
-                    <span>• {s.minutes_per_meter} min/m</span>
+                    <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{s.unit || 'm'}</span>
+                    <span>R$ {s.price_per_meter.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/{s.unit || 'm'}</span>
+                    <span>• {s.minutes_per_meter} min/{s.unit || 'm'}</span>
                   </div>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
@@ -3354,7 +2666,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                     placeholder="Ex: Cola Cuba"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço por Metro (R$)</label>
                     <input
@@ -3375,6 +2687,22 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                       onChange={e => setEditingSupply({ ...editingSupply, minutes_per_meter: parseFloat(e.target.value) })}
                       className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Unidade de Medida</label>
+                    <select
+                      value={editingSupply.unit || 'm'}
+                      onChange={e => setEditingSupply({ ...editingSupply, unit: e.target.value })}
+                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                    >
+                      <option value="un">Unidade (un)</option>
+                      <option value="m">Metro (m)</option>
+                      <option value="m²">Metro² (m²)</option>
+                      <option value="m³">Metro³ (m³)</option>
+                      <option value="kg">Quilograma (kg)</option>
+                      <option value="L">Litro (L)</option>
+                      <option value="mL">Mililitro (mL)</option>
+                    </select>
                   </div>
                 </div>
                 <div className="flex gap-3 pt-4">
@@ -3624,11 +2952,16 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                             {supplies.map(s => {
                               const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
                               const isSelected = !!supplyConfig;
+                              const supplyUnit = s.unit || 'm';
+                              const isLinear = supplyUnit === 'm';
 
                               return (
                                 <div key={s.id} className="flex flex-col gap-2 p-2 bg-secondary-dark/50 rounded-lg border border-border-dark/50">
                                   <div className="flex items-center justify-between">
-                                    <span className={`text-[10px] font-bold ${isSelected ? 'text-primary' : 'text-slate-400'}`}>{s.name}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-[10px] font-bold ${isSelected ? 'text-primary' : 'text-slate-400'}`}>{s.name}</span>
+                                      <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{supplyUnit}</span>
+                                    </div>
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -3637,7 +2970,7 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                                         if (isSelected) {
                                           newParts[index].supplies = partSupplies.filter(ps => ps.supply_id !== s.id);
                                         } else {
-                                          newParts[index].supplies = [...partSupplies, { supply_id: s.id, sides: [] }];
+                                          newParts[index].supplies = [...partSupplies, { supply_id: s.id, sides: [], quantity_per_unit: isLinear ? undefined : 1 }];
                                         }
                                         setEditingModule({ ...editingModule, parts: newParts });
                                       }}
@@ -3648,31 +2981,56 @@ function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'e
                                   </div>
 
                                   {isSelected && (
-                                    <div className="flex gap-1.5">
-                                      {['top', 'bottom', 'left', 'right'].map(side => (
-                                        <button
-                                          key={side}
-                                          type="button"
-                                          onClick={() => {
-                                            const newParts = [...(editingModule.parts || [])];
-                                            const partSupplies = [...(newParts[index].supplies || [])];
-                                            const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
-                                            if (sIdx > -1) {
-                                              const currentSides = partSupplies[sIdx].sides || [];
-                                              if (currentSides.includes(side as any)) {
-                                                partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
-                                              } else {
-                                                partSupplies[sIdx].sides = [...currentSides, side as any];
+                                    <div className="space-y-2">
+                                      <div className="flex gap-1.5">
+                                        {['top', 'bottom', 'left', 'right'].map(side => (
+                                          <button
+                                            key={side}
+                                            type="button"
+                                            onClick={() => {
+                                              const newParts = [...(editingModule.parts || [])];
+                                              const partSupplies = [...(newParts[index].supplies || [])];
+                                              const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                              if (sIdx > -1) {
+                                                const currentSides = partSupplies[sIdx].sides || [];
+                                                if (currentSides.includes(side as any)) {
+                                                  partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
+                                                } else {
+                                                  partSupplies[sIdx].sides = [...currentSides, side as any];
+                                                }
+                                                newParts[index].supplies = partSupplies;
+                                                setEditingModule({ ...editingModule, parts: newParts });
                                               }
-                                              newParts[index].supplies = partSupplies;
-                                              setEditingModule({ ...editingModule, parts: newParts });
-                                            }
-                                          }}
-                                          className={`text-[8px] px-2 py-1 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-500'}`}
-                                        >
-                                          {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
-                                        </button>
-                                      ))}
+                                            }}
+                                            className={`text-[8px] px-2 py-1 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-500'}`}
+                                          >
+                                            {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                          </button>
+                                        ))}
+                                      </div>
+
+                                      {!isLinear && (
+                                        <div className="flex items-center gap-2">
+                                          <label className="text-[8px] font-bold text-slate-500 uppercase whitespace-nowrap">Qtd por peça ({supplyUnit}):</label>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={supplyConfig.quantity_per_unit ?? 1}
+                                            onChange={e => {
+                                              const newParts = [...(editingModule.parts || [])];
+                                              const partSupplies = [...(newParts[index].supplies || [])];
+                                              const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                              if (sIdx > -1) {
+                                                partSupplies[sIdx] = { ...partSupplies[sIdx], quantity_per_unit: parseFloat(e.target.value) || 0 };
+                                                newParts[index].supplies = partSupplies;
+                                                setEditingModule({ ...editingModule, parts: newParts });
+                                              }
+                                            }}
+                                            className="w-20 bg-background-dark border border-border-dark rounded px-2 py-1 text-[10px] outline-none focus:ring-1 focus:ring-primary"
+                                          />
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -3819,6 +3177,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
   const [services, setServices] = useState<Service[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
+  const [descriptionTemplates, setDescriptionTemplates] = useState<{ id: number, text: string }[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
   const [projectName, setProjectName] = useState('');
@@ -3856,12 +3215,85 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
   const [isGenerating, setIsGenerating] = useState(false);
   const [hasManualEdits, setHasManualEdits] = useState(false);
 
+  const quickStats = useMemo(() => {
+    let totalMaterial = 0;
+    let totalServices = 0;
+    let totalArea = 0;
+    let totalMinutes = 0;
+
+    const material = materials.find(m => m.id === selectedMaterialId);
+
+    addedModules.forEach(mod => {
+      mod.parts.forEach(part => {
+        const subtotal_m2 = (part.width * part.length * part.quantity) / 1000000;
+        totalArea += subtotal_m2;
+
+        if (material) {
+          totalMaterial += subtotal_m2 * material.price;
+        }
+
+        // Finish Services
+        const finishService = services.find(s => s.category === 'finish' && s.name === part.finish);
+        if (finishService) {
+          totalServices += subtotal_m2 * finishService.price;
+          totalMinutes += (finishService.minutes_per_meter || 0) * subtotal_m2;
+        }
+
+        // Edge Services
+        if (part.edges) {
+          Object.entries(part.edges).forEach(([side, type]) => {
+            if (!type || type === 'Nenhum') return;
+            const edgeType = type as string;
+            const edgeService = services.find(s => s.category === 'edge' && s.name.trim().toLowerCase() === edgeType.trim().toLowerCase());
+            if (edgeService) {
+              const edgeLengthM = ((side === 'top' || side === 'bottom' ? part.width : part.length) / 1000) * part.quantity;
+              totalServices += edgeLengthM * edgeService.price;
+              totalMinutes += (edgeService.minutes_per_meter || 0) * edgeLengthM;
+            }
+          });
+        }
+
+        // Additional Services
+        if (part.services) {
+          part.services.forEach(ps => {
+            const service = services.find(s => s.id === ps.service_id);
+            if (service) {
+              const qty = (mod.dimensions.L / 1000) * part.quantity;
+              totalServices += qty * service.price;
+              totalMinutes += (service.minutes_per_meter || 0) * qty;
+            }
+          });
+        }
+
+        // Supplies
+        if (part.supplies) {
+          part.supplies.forEach(ps => {
+            const supply = supplies.find(s => s.id === ps.supply_id);
+            if (supply && ps.sides) {
+              ps.sides.forEach(side => {
+                const sideLengthM = ((side === 'top' || side === 'bottom' ? part.width : part.length) / 1000) * part.quantity;
+                totalServices += sideLengthM * supply.price_per_meter;
+                totalMinutes += (supply.minutes_per_meter || 0) * sideLengthM;
+              });
+            }
+          });
+        }
+      });
+    });
+
+    const totalHours = Math.floor(totalMinutes / 60);
+    const remainingMinutes = Math.round(totalMinutes % 60);
+
+    return { totalMaterial, totalServices, totalArea, totalHours, remainingMinutes, totalValue: totalMaterial + totalServices };
+  }, [addedModules, selectedMaterialId, materials, services, supplies]);
+
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(setClients);
     fetch('/api/materials').then(r => r.json()).then(setMaterials);
     fetch('/api/services').then(r => r.json()).then(setServices);
     fetch('/api/supplies').then(r => r.json()).then(setSupplies);
     fetch('/api/module-templates').then(r => r.json()).then(setModuleTemplates);
+    fetch('/api/description-templates').then(r => r.json()).then(setDescriptionTemplates);
   }, []);
 
   useEffect(() => {
@@ -4019,20 +3451,53 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
           if (part.supplies && part.supplies.length > 0) {
             part.supplies.forEach(ps => {
               const supply = supplies.find(s => s.id === ps.supply_id);
-              if (supply && ps.sides && ps.sides.length > 0) {
-                ps.sides.forEach(side => {
-                  const sideLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
-                  const qty = (sideLengthMm / 1000) * part.quantity;
-                  const supplyValue = qty * supply.price_per_meter;
+              if (supply) {
+                const supplyUnit = supply.unit || 'm';
+
+                if (supplyUnit === 'm' && ps.sides && ps.sides.length > 0) {
+                  // Cálculo por metro linear: soma os comprimentos dos lados selecionados
+                  ps.sides.forEach(side => {
+                    const sideLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
+                    const qty = (sideLengthMm / 1000) * part.quantity;
+                    const supplyValue = qty * supply.price_per_meter;
+                    totalValue += supplyValue;
+
+                    allServices.push({
+                      service_id: null,
+                      description: `${mod.projectName} - ${part.name}: Insumo ${supply.name} (${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'})`,
+                      quantity: qty,
+                      unit_price: supply.price_per_meter
+                    });
+                  });
+                } else {
+                  // Cálculo por unidade fixa (un, kg, L, m², m³, mL): usa quantity_per_unit
+                  const qtyPerUnit = ps.quantity_per_unit || 1;
+                  let totalQty = qtyPerUnit * part.quantity;
+
+                  // Se tem lados selecionados e unidade é m², calcula pela área dos lados
+                  if (supplyUnit === 'm²' && ps.sides && ps.sides.length > 0) {
+                    totalQty = 0;
+                    ps.sides.forEach(side => {
+                      const sideLengthMm = (side === 'top' || side === 'bottom') ? part.width : part.length;
+                      const sideHeightMm = (side === 'top' || side === 'bottom') ? part.length : part.width;
+                      totalQty += ((sideLengthMm / 1000) * (sideHeightMm / 1000)) * part.quantity;
+                    });
+                  }
+
+                  const supplyValue = totalQty * supply.price_per_meter;
                   totalValue += supplyValue;
+
+                  const sidesLabel = ps.sides && ps.sides.length > 0
+                    ? ` (${ps.sides.map(s => s === 'top' ? 'Topo' : s === 'bottom' ? 'Base' : s === 'left' ? 'Esq.' : 'Dir.').join(', ')})`
+                    : '';
 
                   allServices.push({
                     service_id: null,
-                    description: `${mod.projectName} - ${part.name}: Insumo ${supply.name} (${side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'})`,
-                    quantity: qty,
+                    description: `${mod.projectName} - ${part.name}: Insumo ${supply.name}${sidesLabel} [${totalQty.toFixed(2)} ${supplyUnit}]`,
+                    quantity: totalQty,
                     unit_price: supply.price_per_meter
                   });
-                });
+                }
               }
             });
           }
@@ -4094,9 +3559,13 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
             <input
               value={projectName}
               onChange={e => setProjectName(e.target.value)}
+              list="quick-quote-description-templates"
               className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all"
               placeholder="Ex: Cozinha Americana"
             />
+            <datalist id="quick-quote-description-templates">
+              {descriptionTemplates.map(t => <option key={t.id} value={t.text} />)}
+            </datalist>
           </div>
 
           <div className="space-y-2">
@@ -4293,11 +3762,16 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                               {supplies.map(s => {
                                 const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
                                 const isSelected = !!supplyConfig;
+                                const supplyUnit = s.unit || 'm';
+                                const isLinear = supplyUnit === 'm';
 
                                 return (
                                   <div key={s.id} className="flex flex-col gap-1.5 p-2 bg-background-dark/50 rounded-lg border border-border-dark/50">
                                     <div className="flex items-center justify-between">
-                                      <span className={`text-[9px] font-bold ${isSelected ? 'text-primary' : 'text-slate-500'}`}>{s.name}</span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className={`text-[9px] font-bold ${isSelected ? 'text-primary' : 'text-slate-500'}`}>{s.name}</span>
+                                        <span className="text-[7px] bg-primary/10 text-primary px-1 py-0.5 rounded font-bold">{supplyUnit}</span>
+                                      </div>
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -4307,7 +3781,7 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                             if (isSelected) {
                                               return { ...p, supplies: partSupplies.filter(ps => ps.supply_id !== s.id) };
                                             } else {
-                                              return { ...p, supplies: [...partSupplies, { supply_id: s.id, sides: [] }] };
+                                              return { ...p, supplies: [...partSupplies, { supply_id: s.id, sides: [], quantity_per_unit: isLinear ? undefined : 1 }] };
                                             }
                                           }));
                                           setHasManualEdits(true);
@@ -4319,34 +3793,62 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
                                     </div>
 
                                     {isSelected && (
-                                      <div className="flex gap-1">
-                                        {['top', 'bottom', 'left', 'right'].map(side => (
-                                          <button
-                                            key={side}
-                                            type="button"
-                                            onClick={() => {
-                                              setCalculatedParts(prev => prev.map(p => {
-                                                if (p.id !== part.id) return p;
-                                                const partSupplies = [...(p.supplies || [])];
-                                                const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
-                                                if (sIdx > -1) {
-                                                  const currentSides = partSupplies[sIdx].sides || [];
-                                                  if (currentSides.includes(side as any)) {
-                                                    partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
-                                                  } else {
-                                                    partSupplies[sIdx].sides = [...currentSides, side as any];
+                                      <div className="space-y-1.5">
+                                        <div className="flex gap-1">
+                                          {['top', 'bottom', 'left', 'right'].map(side => (
+                                            <button
+                                              key={side}
+                                              type="button"
+                                              onClick={() => {
+                                                setCalculatedParts(prev => prev.map(p => {
+                                                  if (p.id !== part.id) return p;
+                                                  const partSupplies = [...(p.supplies || [])];
+                                                  const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                                  if (sIdx > -1) {
+                                                    const currentSides = partSupplies[sIdx].sides || [];
+                                                    if (currentSides.includes(side as any)) {
+                                                      partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
+                                                    } else {
+                                                      partSupplies[sIdx].sides = [...currentSides, side as any];
+                                                    }
+                                                    return { ...p, supplies: partSupplies };
                                                   }
-                                                  return { ...p, supplies: partSupplies };
-                                                }
-                                                return p;
-                                              }));
-                                              setHasManualEdits(true);
-                                            }}
-                                            className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-600'}`}
-                                          >
-                                            {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
-                                          </button>
-                                        ))}
+                                                  return p;
+                                                }));
+                                                setHasManualEdits(true);
+                                              }}
+                                              className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-600'}`}
+                                            >
+                                              {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
+                                            </button>
+                                          ))}
+                                        </div>
+
+                                        {!isLinear && (
+                                          <div className="flex items-center gap-1.5">
+                                            <label className="text-[7px] font-bold text-slate-500 uppercase whitespace-nowrap">Qtd ({supplyUnit}):</label>
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              min="0"
+                                              value={supplyConfig.quantity_per_unit ?? 1}
+                                              onChange={e => {
+                                                setCalculatedParts(prev => prev.map(p => {
+                                                  if (p.id !== part.id) return p;
+                                                  const partSupplies = [...(p.supplies || [])];
+                                                  const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
+                                                  if (sIdx > -1) {
+                                                    partSupplies[sIdx] = { ...partSupplies[sIdx], quantity_per_unit: parseFloat(e.target.value) || 0 };
+                                                    return { ...p, supplies: partSupplies };
+                                                  }
+                                                  return p;
+                                                }));
+                                                setHasManualEdits(true);
+                                              }}
+                                              className="w-16 bg-background-dark border border-border-dark rounded px-1.5 py-0.5 text-[9px] outline-none focus:ring-1 focus:ring-primary"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -4460,27 +3962,37 @@ function QuickQuoteView({ showToast }: { showToast: (m: string, t?: 'success' | 
               ))}
             </div>
 
-            <div className="bg-primary/10 p-6 rounded-2xl border border-primary/30 flex justify-between items-center">
-              <div>
-                <p className="text-xs font-bold text-primary uppercase">Total do Orçamento ({addedModules.length} módulos)</p>
-                <p className="text-3xl font-black text-primary">
-                  R$ {(() => {
-                    const material = materials.find(m => m.id === selectedMaterialId);
-                    if (!material) return "0,00";
-                    const totalM2 = addedModules.reduce((acc, mod) => {
-                      return acc + mod.parts.reduce((pAcc, p) => pAcc + (p.width * p.length * p.quantity) / 1000000, 0);
-                    }, 0);
-                    return (totalM2 * material.price).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                  })()}
-                </p>
+            <div className="bg-secondary-dark p-6 rounded-2xl border border-border-dark space-y-6">
+              <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Resumo do Orçamento</h4>
+                <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase">{addedModules.length} Módulos</span>
               </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-slate-500 uppercase">Área Total Acumulada</p>
-                <p className="text-xl font-bold text-slate-300">
-                  {addedModules.reduce((acc, mod) => {
-                    return acc + mod.parts.reduce((pAcc, p) => pAcc + (p.width * p.length * p.quantity) / 1000000, 0);
-                  }, 0).toFixed(2)} m²
-                </p>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Total Material</p>
+                  <p className="text-lg font-black text-white">R$ {quickStats.totalMaterial.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Total Serviços</p>
+                  <p className="text-lg font-black text-white">R$ {quickStats.totalServices.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Área Total</p>
+                  <p className="text-lg font-black text-white">{quickStats.totalArea.toFixed(2)} <span className="text-slate-500 text-xs">m²</span></p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Tempo Estimado</p>
+                  <p className="text-lg font-black text-white">{quickStats.totalHours}h {quickStats.remainingMinutes}min</p>
+                </div>
+              </div>
+
+              <div className="bg-primary/10 p-5 rounded-xl border border-primary/20 flex justify-between items-center">
+                <div>
+                  <p className="text-[10px] font-bold text-primary uppercase mb-1">Valor Total Geral</p>
+                  <p className="text-4xl font-black text-primary">R$ {quickStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <Calculator className="text-primary/30 w-12 h-12" />
               </div>
             </div>
           </div>

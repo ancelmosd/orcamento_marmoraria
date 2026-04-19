@@ -100,6 +100,7 @@ model quotes {
   delivery_date  String?
   quote_items    quote_items[]
   quote_services quote_services[]
+  quote_photos   quote_photos[]
   clients        clients?         @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -118,6 +119,7 @@ model supplies {
   name              String
   price_per_meter   Float
   minutes_per_meter Float
+  unit              String @default("m")
 }
 model payments {
   id           Int       @id @default(autoincrement())
@@ -129,4 +131,19 @@ model payments {
   description  String?
   created_at   DateTime? @default(now())
   clients      clients   @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model dismissed_notifications {
+  id               Int      @id @default(autoincrement())
+  notification_key String   @unique
+  dismissed_at     DateTime @default(now())
+}
+
+model quote_photos {
+  id          Int      @id @default(autoincrement())
+  quote_id    Int
+  url         String   // Base64 ou URL de arquivo
+  description String?
+  created_at  DateTime @default(now())
+  quotes      quotes   @relation(fields: [quote_id], references: [id], onDelete: Cascade)
 }
