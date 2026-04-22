@@ -661,6 +661,40 @@ app.delete("/api/supplies/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+app.get("/api/transactions", async (req, res) => {
+  try {
+    const txs = await prisma.financial_transactions.findMany({
+      orderBy: { date: 'desc' }
+    });
+    res.json(txs);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch transactions" });
+  }
+});
+
+app.post("/api/transactions", async (req, res) => {
+  try {
+    const { title, type, amount, date } = req.body;
+    const tx = await prisma.financial_transactions.create({
+      data: { title, type, amount: Number(amount), date: new Date(date) }
+    });
+    res.json(tx);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create transaction" });
+  }
+});
+
+app.delete("/api/transactions/:id", async (req, res) => {
+  try {
+    await prisma.financial_transactions.delete({
+      where: { id: Number(req.params.id) }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete transaction" });
+  }
+});
+
 app.get("/api/backup", async (req, res) => {
   try {
     const [

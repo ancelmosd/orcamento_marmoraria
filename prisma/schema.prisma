@@ -147,3 +147,12 @@ model quote_photos {
   created_at  DateTime @default(now())
   quotes      quotes   @relation(fields: [quote_id], references: [id], onDelete: Cascade)
 }
+
+model financial_transactions {
+  id          Int      @id @default(autoincrement())
+  title       String
+  type        String
+  amount      Float
+  date        DateTime
+  created_at  DateTime @default(now())
+}

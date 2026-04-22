@@ -135,3 +135,13 @@ export interface ModuleTemplate {
   description: string;
   parts: ModulePart[];
 }
+
+export interface FinancialTransaction {
+  id: number;
+  title: string;
+  type: 'income' | 'expense';
+  amount: number;
+  date: string;
+  created_at: string;
+}
+

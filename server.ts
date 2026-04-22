@@ -746,6 +746,43 @@ async function startServer() {
   });
 
   // Backup and Restore (Novo Sistema JSON Universal)
+  app.get("/api/transactions", async (req, res) => {
+    try {
+      const txs = await prisma.financial_transactions.findMany({
+        orderBy: { date: 'desc' }
+      });
+      res.json(txs);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Falha ao buscar transações" });
+    }
+  });
+
+  app.post("/api/transactions", async (req, res) => {
+    try {
+      const { title, type, amount, date } = req.body;
+      const tx = await prisma.financial_transactions.create({
+        data: { title, type, amount: Number(amount), date: new Date(date) }
+      });
+      res.json(tx);
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Falha ao criar transação" });
+    }
+  });
+
+  app.delete("/api/transactions/:id", async (req, res) => {
+    try {
+      await prisma.financial_transactions.delete({
+        where: { id: Number(req.params.id) }
+      });
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Falha ao excluir transação" });
+    }
+  });
+
   app.get("/api/backup", async (req, res) => {
     try {
       const [

@@ -37,7 +37,8 @@ import {
   CalendarCheck,
   ArrowLeft,
   Clock,
-  MessageCircle
+  MessageCircle,
+  DollarSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
@@ -52,6 +53,7 @@ import { PhotoGallery } from './components/PhotoGallery';
 import { NavItem } from './components/NavItem';
 import { DashboardView } from './components/DashboardView';
 import { HistoryView } from './components/HistoryView';
+import { FinancialView } from './components/FinancialView';
 
 // Mock data for initial render
 const MOCK_STATS: DashboardStats = {
@@ -190,6 +192,7 @@ export default function App() {
         />
       );
       case 'settings': return <SettingsView showToast={showToast} />;
+      case 'financial': return <FinancialView showToast={showToast} />;
       default: return <DashboardView stats={stats} onAction={handleQuickAction} />;
     }
   };
@@ -215,10 +218,11 @@ export default function App() {
           <NavItem icon={<Users />} label="Clientes" active={activeTab === 'clients'} onClick={() => handleTabChange('clients')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Package />} label="Estoque" active={activeTab === 'materials'} onClick={() => handleTabChange('materials')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => handleTabChange('services')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Calculator />} label="Calculadora" active={activeTab === 'quotes'} onClick={() => handleTabChange('quotes')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<Calculator />} label="Orçamento" active={activeTab === 'quotes'} onClick={() => handleTabChange('quotes')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Zap />} label="Orçamento Rápido" active={activeTab === 'quick-quote'} onClick={() => handleTabChange('quick-quote')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<History />} label="Histórico" active={activeTab === 'history'} onClick={() => handleTabChange('history')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<History />} label="Projetos" active={activeTab === 'history'} onClick={() => handleTabChange('history')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => handleTabChange('cut-plan')} collapsed={!isSidebarOpen} />
+          <NavItem icon={<DollarSign />} label="Financeiro" active={activeTab === 'financial'} onClick={() => handleTabChange('financial')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Settings />} label="Configurações" active={activeTab === 'settings'} onClick={() => handleTabChange('settings')} collapsed={!isSidebarOpen} />
         </div>
 
