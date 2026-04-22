@@ -23,6 +23,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<any | null>(null);
   const [quoteToDelete, setQuoteToDelete] = useState<number | null>(null);
+  const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null);
 
   const fetchQuotes = async () => {
     try {
@@ -270,7 +271,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          fetchQuoteDetails(quote.id);
+                          setSelectedGalleryId(quote.id);
                         }}
                         className="p-1.5 bg-primary/10 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
                         title="Ver Detalhes e Fotos"
@@ -326,6 +327,64 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           </tbody>
         </table>
       </div>
+
+      <AnimatePresence>
+        {selectedGalleryId && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setSelectedGalleryId(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-secondary-dark border border-border-dark rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-border-dark flex justify-between items-center bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-lg text-primary">
+                    <Camera size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">Galeria de Fotos</h3>
+                    <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mt-1">
+                      Visualizando fotos do projeto #{selectedGalleryId}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                   <button
+                    onClick={() => {
+                      fetchQuoteDetails(selectedGalleryId);
+                      setSelectedGalleryId(null);
+                    }}
+                    className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+                  >
+                    <Info size={16} /> Ver Detalhes
+                  </button>
+                  <button
+                    onClick={() => setSelectedGalleryId(null)}
+                    className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
+                <PhotoGallery quoteId={selectedGalleryId} showToast={showToast} />
+              </div>
+
+              <div className="p-6 bg-white/5 border-t border-border-dark flex justify-end">
+                <button
+                  onClick={() => setSelectedGalleryId(null)}
+                  className="px-8 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-sm transition-colors text-white"
+                >
+                  Fechar Galeria
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {quoteToDelete && (
