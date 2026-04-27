@@ -18,7 +18,7 @@ export const NavItem: React.FC<NavItemProps> = ({ icon, label, active, onClick, 
         }`}
     >
       <span className={`${active ? 'text-white' : 'text-slate-500 group-hover:text-primary'} transition-colors`}>
-        {React.cloneElement(icon as React.ReactElement, { size: 20 })}
+        {React.cloneElement(icon as any, { size: 20 })}
       </span>
       {!collapsed && <span className="font-medium text-sm whitespace-nowrap">{label}</span>}
     </button>

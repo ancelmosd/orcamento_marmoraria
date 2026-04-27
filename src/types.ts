@@ -96,6 +96,7 @@ export interface DescriptionTemplate {
 export interface ModulePartService {
   service_id: number;
   dimension: 'width' | 'length' | 'fixed';
+  sides?: ('top' | 'bottom' | 'left' | 'right')[];
 }
 
 export interface ModulePartSupply {
@@ -113,10 +114,10 @@ export interface Supply {
 }
 
 export interface ModulePart {
-  id: string;
+  id: string | number;
   name: string;
-  widthFormula: string; // e.g., "L - 20"
-  lengthFormula: string; // e.g., "P"
+  formula_l: string; // e.g., "L - 20"
+  formula_p: string; // e.g., "P"
   quantity: number;
   finish?: string;
   edges?: {
@@ -127,6 +128,12 @@ export interface ModulePart {
   };
   services?: ModulePartService[];
   supplies?: ModulePartSupply[];
+  pos_x?: string;
+  pos_y?: string;
+  pos_z?: string;
+  rot_x?: string;
+  rot_y?: string;
+  rot_z?: string;
 }
 
 export interface ModuleTemplate {
@@ -134,6 +141,9 @@ export interface ModuleTemplate {
   name: string;
   description: string;
   parts: ModulePart[];
+  default_l?: number;
+  default_p?: number;
+  material_id?: number;
 }
 
 export interface FinancialTransaction {
@@ -145,3 +155,5 @@ export interface FinancialTransaction {
   created_at: string;
 }
 
+export const EDGE_TYPES = ['Nenhum', '45 Graus', 'Reto', 'Boleado', 'Meia Cana', 'Bisotê', 'Pingadeira', 'Peito de Pombo'];
+export const FINISHING_TYPES = ['Polido', 'Levigado', 'Escovado', 'Bruto', 'Jateado', 'Flamejado', 'Apicoado'];

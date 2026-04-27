@@ -63,6 +63,9 @@ model module_templates {
   name        String
   description String?
   parts       String
+  default_l   Float?
+  default_p   Float?
+  material_id Int?
 }
 
 model quote_items {
@@ -98,6 +101,8 @@ model quotes {
   status         String?          @default("Rascunho")
   created_at     DateTime?        @default(now())
   delivery_date  String?
+  origin         String?          @default("standard") // 'standard' ou 'quick'
+  metadata       String?          // JSON com dados extras (ex: addedModules)
   quote_items    quote_items[]
   quote_services quote_services[]
   quote_photos   quote_photos[]

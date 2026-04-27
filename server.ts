@@ -314,7 +314,9 @@ async function startServer() {
   });
 
   app.get("/api/materials", async (req, res) => {
-    const materials = await prisma.materials.findMany();
+    const materials = await prisma.materials.findMany({
+      orderBy: { id: 'desc' }
+    });
     res.json(materials);
   });
 
@@ -390,7 +392,9 @@ async function startServer() {
   });
 
   app.get("/api/services", async (req, res) => {
-    const servicesList = await prisma.services.findMany();
+    const servicesList = await prisma.services.findMany({
+      orderBy: { id: 'desc' }
+    });
     res.json(servicesList);
   });
 
@@ -511,38 +515,46 @@ async function startServer() {
   });
 
   app.post("/api/quotes", async (req, res) => {
-    const { client_id, project_name, total_value, discount, delivery_date, items, services } = req.body;
-    
-    const quote = await prisma.quotes.create({
-      data: {
-        client_id: parseInt(client_id),
-        project_name,
-        total_value,
-        discount: discount || 0,
-        delivery_date: delivery_date || null,
-        status: 'Pendente',
-        quote_items: {
-          create: items.map((item: any) => ({
-            material_id: parseInt(item.material_id),
-            length: item.length,
-            width: item.width,
-            quantity: item.quantity,
-            subtotal_m2: item.subtotal_m2,
-            description: item.description
-          }))
-        },
-        quote_services: {
-          create: services ? services.map((s: any) => ({
-            service_id: parseInt(s.service_id),
-            quantity: s.quantity,
-            unit_price: s.unit_price,
-            description: s.description
-          })) : []
+    const { client_id, project_name, total_value, discount, delivery_date, items, services, origin, metadata } = req.body;
+    try {
+      const validServices = (services || []).filter((s: any) => s.service_id !== null && s.service_id !== undefined && !isNaN(parseInt(s.service_id)));
+
+      const quote = await prisma.quotes.create({
+        data: {
+          client_id: parseInt(client_id),
+          project_name,
+          total_value,
+          discount: discount || 0,
+          delivery_date: delivery_date || null,
+          status: 'Pendente',
+          origin: origin || 'standard',
+          metadata: metadata ? (typeof metadata === 'string' ? metadata : JSON.stringify(metadata)) : null,
+          quote_items: {
+            create: items.map((item: any) => ({
+              material_id: parseInt(item.material_id),
+              length: item.length,
+              width: item.width,
+              quantity: item.quantity,
+              subtotal_m2: item.subtotal_m2,
+              description: item.description
+            }))
+          },
+          quote_services: {
+            create: validServices.map((s: any) => ({
+              service_id: parseInt(s.service_id),
+              quantity: s.quantity,
+              unit_price: s.unit_price,
+              description: s.description
+            }))
+          }
         }
-      }
-    });
-    
-    res.json({ id: quote.id });
+      });
+      
+      res.json({ id: quote.id });
+    } catch (e: any) {
+      console.error("Erro ao criar orçamento:", e);
+      res.status(500).json({ error: e.message || "Erro ao criar orçamento" });
+    }
   });
 
   app.get("/api/quotes/:id", async (req, res) => {
@@ -576,45 +588,54 @@ async function startServer() {
 
   app.put("/api/quotes/:id", async (req, res) => {
     const { id } = req.params;
-    const { client_id, project_name, total_value, discount, delivery_date, items, services } = req.body;
-    
-    await prisma.$transaction([
-      prisma.quotes.update({
-        where: { id: parseInt(id) },
-        data: {
-          client_id: parseInt(client_id),
-          project_name,
-          total_value,
-          discount: discount || 0,
-          delivery_date: delivery_date || null
-        }
-      }),
-      prisma.quote_items.deleteMany({ where: { quote_id: parseInt(id) } }),
-      prisma.quote_services.deleteMany({ where: { quote_id: parseInt(id) } }),
-      prisma.quote_items.createMany({
-        data: items.map((item: any) => ({
-          quote_id: parseInt(id),
-          material_id: parseInt(item.material_id),
-          length: item.length,
-          width: item.width,
-          quantity: item.quantity,
-          subtotal_m2: item.subtotal_m2,
-          description: item.description
-        }))
-      }),
-      prisma.quote_services.createMany({
-        data: services ? services.map((s: any) => ({
-          quote_id: parseInt(id),
-          service_id: parseInt(s.service_id),
-          quantity: s.quantity,
-          unit_price: s.unit_price,
-          description: s.description
-        })) : []
-      })
-    ]);
-    
-    res.json({ success: true });
+    const { client_id, project_name, total_value, discount, delivery_date, items, services, origin, metadata } = req.body;
+    try {
+      const validServices = (services || []).filter((s: any) => s.service_id !== null && s.service_id !== undefined && !isNaN(parseInt(s.service_id)));
+
+      await prisma.$transaction([
+        prisma.quotes.update({
+          where: { id: parseInt(id) },
+          data: {
+            client_id: parseInt(client_id),
+            project_name,
+            total_value,
+            discount: discount || 0,
+            delivery_date: delivery_date || null,
+            origin: origin,
+            metadata: metadata ? (typeof metadata === 'string' ? metadata : JSON.stringify(metadata)) : null
+          }
+        }),
+        prisma.quote_items.deleteMany({ where: { quote_id: parseInt(id) } }),
+        prisma.quote_services.deleteMany({ where: { quote_id: parseInt(id) } }),
+        prisma.quote_items.createMany({
+          data: items.map((item: any) => ({
+            quote_id: parseInt(id),
+            material_id: parseInt(item.material_id),
+            length: item.length,
+            width: item.width,
+            quantity: item.quantity,
+            subtotal_m2: item.subtotal_m2,
+            description: item.description
+          }))
+        }),
+        prisma.quote_services.createMany({
+          data: validServices.map((s: any) => ({
+            quote_id: parseInt(id),
+            service_id: parseInt(s.service_id),
+            quantity: s.quantity,
+            unit_price: s.unit_price,
+            description: s.description
+          }))
+        })
+      ]);
+
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error("Erro ao atualizar orçamento:", e);
+      res.status(500).json({ error: e.message || "Erro ao atualizar orçamento" });
+    }
   });
+
 
   app.patch("/api/quotes/:id/status", async (req, res) => {
     const { id } = req.params;
@@ -683,26 +704,52 @@ async function startServer() {
 
   // Module Templates API
   app.get("/api/module-templates", async (req, res) => {
-    const templates = await prisma.module_templates.findMany();
+    const templates = await prisma.module_templates.findMany({
+      orderBy: { id: 'desc' }
+    });
     res.json(templates.map((t: any) => ({ ...t, parts: JSON.parse(t.parts) })));
   });
 
   app.post("/api/module-templates", async (req, res) => {
-    const { name, description, parts } = req.body;
-    const template = await prisma.module_templates.create({
-      data: { name, description, parts: JSON.stringify(parts) }
-    });
-    res.json({ id: template.id });
+    const { name, description, parts, default_l, default_p, material_id } = req.body;
+    try {
+      const template = await prisma.module_templates.create({
+        data: { 
+          name, 
+          description, 
+          parts: JSON.stringify(parts),
+          default_l: parseFloat(default_l) || null,
+          default_p: parseFloat(default_p) || null,
+          material_id: material_id ? parseInt(material_id) : null
+        }
+      });
+      res.json({ id: template.id });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Erro ao criar template" });
+    }
   });
 
   app.put("/api/module-templates/:id", async (req, res) => {
     const { id } = req.params;
-    const { name, description, parts } = req.body;
-    await prisma.module_templates.update({
-      where: { id: parseInt(id) },
-      data: { name, description, parts: JSON.stringify(parts) }
-    });
-    res.json({ success: true });
+    const { name, description, parts, default_l, default_p, material_id } = req.body;
+    try {
+      await prisma.module_templates.update({
+        where: { id: parseInt(id) },
+        data: { 
+          name, 
+          description, 
+          parts: JSON.stringify(parts),
+          default_l: parseFloat(default_l) || null,
+          default_p: parseFloat(default_p) || null,
+          material_id: material_id ? parseInt(material_id) : null
+        }
+      });
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "Erro ao atualizar template" });
+    }
   });
 
   app.delete("/api/module-templates/:id", async (req, res) => {
@@ -715,7 +762,9 @@ async function startServer() {
 
   // Supplies API
   app.get("/api/supplies", async (req, res) => {
-    const suppliesList = await prisma.supplies.findMany();
+    const suppliesList = await prisma.supplies.findMany({
+      orderBy: { id: 'desc' }
+    });
     res.json(suppliesList);
   });
 

@@ -4,11 +4,12 @@ import {
   Settings, X, Info, Layers, Construction, Camera 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { normalizeSearchText } from '../utils/helpers';
 import { PhotoGallery } from './PhotoGallery';
 
 interface HistoryViewProps {
   searchTerm: string;
-  onEdit: (id: number) => void;
+  onEdit: (id: number, origin: string) => void;
   showToast: (m: string, t?: 'success' | 'error') => void;
   generateQuotePDF: (quote: any) => void;
 }
@@ -44,12 +45,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     fetchQuotes();
   }, []);
 
-  const normalizeSearchText = (text: any) => {
-    if (text === null || text === undefined) return '';
-    return String(text).toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-  };
 
   const filteredQuotes = (quotes || []).filter((quote) => 
     [
@@ -261,7 +256,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onEdit(quote.id);
+                          onEdit(quote.id, quote.origin || 'standard');
                         }}
                         className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
                         title="Editar Orçamento"
@@ -534,8 +529,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 <button
                   onClick={() => {
                     const id = selectedQuoteDetails.id;
+                    const origin = selectedQuoteDetails.origin || 'standard';
                     setSelectedQuoteDetails(null);
-                    onEdit(id);
+                    onEdit(id, origin);
                   }}
                   className="flex-1 bg-primary text-white py-3 rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
                 >
