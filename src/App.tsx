@@ -70,6 +70,16 @@ export default function App() {
   const [profileImage, setProfileImage] = useState<string>(localStorage.getItem('user_profile_image') || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80');
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [moduleToImport, setModuleToImport] = useState<any>(null);
+  const [companyInfo, setCompanyInfo] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/settings/company')
+      .then(r => r.json())
+      .then(data => {
+        if (Object.keys(data).length > 0) setCompanyInfo(data);
+      })
+      .catch(console.error);
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -151,11 +161,12 @@ export default function App() {
           }}
           onCancel={() => {
             setEditQuoteId(null);
-            setActiveTab('history');
+            setActiveTab('dashboard');
           }}
           showToast={showToast}
           moduleToAdd={moduleToImport}
           onModuleAdded={() => setModuleToImport(null)}
+          companyInfo={companyInfo}
         />
       );
       case 'cut-plan': return <CutPlanView showToast={showToast} />;
@@ -173,21 +184,19 @@ export default function App() {
           showToast={showToast}
         />
       );
-      case 'services': return <ServicesView searchTerm={globalSearch} showToast={showToast} />;
       case 'history': return (
         <HistoryView
           searchTerm={globalSearch}
-          onEdit={(id, origin) => {
+          onEdit={(id) => {
             setEditQuoteId(id);
-            setActiveTab(origin === 'quick' ? 'quick-quote' : 'quotes');
+            setActiveTab('quotes');
           }}
           showToast={showToast}
-          generateQuotePDF={generateQuotePDF}
+          generateQuotePDF={(quote) => generateQuotePDF(quote, companyInfo)}
         />
       );
       case 'settings': return <SettingsView showToast={showToast} />;
       case 'financial': return <FinancialView showToast={showToast} />;
-      case 'modules': return <ModuleTemplatesView showToast={showToast} />;
       default: return <DashboardView stats={stats} onAction={handleQuickAction} />;
     }
   };
@@ -211,13 +220,11 @@ export default function App() {
           <NavItem icon={<LayoutDashboard />} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Users />} label="Clientes" active={activeTab === 'clients'} onClick={() => handleTabChange('clients')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Package />} label="Estoque" active={activeTab === 'materials'} onClick={() => handleTabChange('materials')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Construction />} label="Serviços" active={activeTab === 'services'} onClick={() => handleTabChange('services')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Calculator />} label="Orçamento" active={activeTab === 'quotes'} onClick={() => handleTabChange('quotes')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Zap />} label="Orçamento Rápido" active={activeTab === 'quick-quote'} onClick={() => handleTabChange('quick-quote')} collapsed={!isSidebarOpen} />
           <NavItem icon={<History />} label="Projetos" active={activeTab === 'history'} onClick={() => handleTabChange('history')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Scissors />} label="Plano de Corte" active={activeTab === 'cut-plan'} onClick={() => handleTabChange('cut-plan')} collapsed={!isSidebarOpen} />
           <NavItem icon={<DollarSign />} label="Financeiro" active={activeTab === 'financial'} onClick={() => handleTabChange('financial')} collapsed={!isSidebarOpen} />
-          <NavItem icon={<Box />} label="Módulos" active={activeTab === 'modules'} onClick={() => handleTabChange('modules')} collapsed={!isSidebarOpen} />
           <NavItem icon={<Settings />} label="Configurações" active={activeTab === 'settings'} onClick={() => handleTabChange('settings')} collapsed={!isSidebarOpen} />
         </div>
 

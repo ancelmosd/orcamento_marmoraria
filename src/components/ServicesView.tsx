@@ -232,48 +232,67 @@ export default function ServicesView({ searchTerm, showToast }: { searchTerm: st
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 gap-8">
+      <div className="space-y-8">
         {['finish', 'edge', 'other'].map(cat => (
           <div key={cat} className="space-y-4">
-            <h3 className="text-lg font-bold text-primary uppercase tracking-wider border-b border-primary/20 pb-2">
+            <h3 className="text-lg font-black text-primary uppercase tracking-wider border-b border-primary/20 pb-2">
               {cat === 'finish' ? 'Acabamentos' : cat === 'edge' ? 'Bordas' : 'Outros Serviços'}
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredServices.filter(s => s.category === cat).map(s => (
-                <div key={s.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group">
-                  <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleEdit(s)}
-                      className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors"
-                      title="Editar"
-                    >
-                      <Settings size={14} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(s.id)}
-                      className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors"
-                      title="Excluir"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <div className="flex justify-between items-start mb-4 pr-12">
-                    <h3 className="font-bold text-lg">{s.name}</h3>
-                    <div className="text-right">
-                      <p className="text-primary font-bold">R$ {s.price}</p>
-                      <p className="text-[10px] text-slate-500 uppercase font-bold">{s.minutes_per_meter || 0} min/m</p>
-                    </div>
-                  </div>
-                  <p className="text-slate-500 text-sm">{s.description}</p>
-                </div>
-              ))}
-              {filteredServices.filter(s => s.category === cat).length === 0 && (
-                <p className="text-slate-500 text-sm italic py-4">
-                  {services.filter(s => s.category === cat).length === 0
-                    ? 'Nenhum serviço nesta categoria.'
-                    : 'Nenhum serviço encontrado para essa busca.'}
-                </p>
-              )}
+            
+            <div className="bg-secondary-dark rounded-2xl border border-border-dark overflow-hidden shadow-xl">
+              <table className="w-full text-left">
+                <thead className="bg-white/5 border-b border-border-dark">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nome do Serviço</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Tempo Prod.</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Preço Base</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-dark">
+                  {filteredServices.filter(s => s.category === cat).map(s => (
+                    <tr key={s.id} className="hover:bg-white/5 transition-colors group">
+                      <td className="px-6 py-4">
+                        <p className="font-black text-white">{s.name}</p>
+                        <p className="text-xs text-slate-500 line-clamp-1">{s.description}</p>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-xs font-mono text-slate-400">{(s.minutes_per_meter || 0)} min/m</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="font-black text-primary">R$ {(s.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleEdit(s)}
+                            className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-primary transition-all"
+                            title="Editar"
+                          >
+                            <Settings size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(s.id)}
+                            className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-red-500 transition-all"
+                            title="Excluir"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredServices.filter(s => s.category === cat).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-500 text-sm italic">
+                        {services.filter(s => s.category === cat).length === 0
+                          ? 'Nenhum serviço nesta categoria.'
+                          : 'Nenhum serviço encontrado para essa busca.'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         ))}

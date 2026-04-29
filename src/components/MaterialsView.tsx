@@ -15,16 +15,22 @@ import { normalizeSearchText } from '../utils/helpers';
 export default function MaterialsView({ searchTerm, showToast }: { searchTerm: string, showToast: (m: string, t?: 'success' | 'error') => void }) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [remnants, setRemnants] = useState<Remnant[]>([]);
-  const [activeSubTab, setActiveSubTab] = useState<'slabs' | 'remnants'>('slabs');
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [activeSubTab, setActiveSubTab] = useState<'slabs' | 'remnants' | 'supplies'>('slabs');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: '', price: '', quantity: '', description: '' });
   const [remnantFormData, setRemnantFormData] = useState({ material_id: '', width: '', length: '', quantity: '1', location: '', observations: '' });
+  const [supplyFormData, setSupplyFormData] = useState({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un' });
   const [stockEntryMaterial, setStockEntryMaterial] = useState<Material | null>(null);
   const [stockAmount, setStockAmount] = useState('');
 
   const fetchMaterials = () => {
     fetch('/api/materials').then(r => r.json()).then(setMaterials);
+  };
+
+  const fetchSupplies = () => {
+    fetch('/api/supplies').then(r => r.json()).then(setSupplies);
   };
 
   const fetchRemnants = () => {
@@ -34,6 +40,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
   useEffect(() => {
     fetchMaterials();
     fetchRemnants();
+    fetchSupplies();
   }, []);
 
   const filteredMaterials = materials.filter((material) =>
@@ -54,6 +61,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
       r.length
     ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
   );
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +107,55 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     }
   };
 
+  const handleAddStockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stockEntryMaterial) return;
+
+    const res = await fetch(`/api/materials/${stockEntryMaterial.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...stockEntryMaterial,
+        quantity: (stockEntryMaterial.quantity || 0) + parseFloat(stockAmount)
+      })
+    });
+
+    if (res.ok) {
+      showToast(`Estoque de ${stockEntryMaterial.name} atualizado!`);
+      setStockEntryMaterial(null);
+      setStockAmount('');
+      fetchMaterials();
+    } else {
+      showToast("Erro ao atualizar estoque.", "error");
+    }
+  };
+
+  const handleSupplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editingId ? `/api/supplies/${editingId}` : '/api/supplies';
+    const method = editingId ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...supplyFormData,
+        price_per_meter: parseFloat(supplyFormData.price_per_meter),
+        minutes_per_meter: parseFloat(supplyFormData.minutes_per_meter)
+      })
+    });
+
+    if (res.ok) {
+      showToast(editingId ? "Insumo atualizado!" : "Insumo cadastrado!");
+      setSupplyFormData({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un' });
+      setShowForm(false);
+      setEditingId(null);
+      fetchSupplies();
+    } else {
+      showToast("Erro ao salvar insumo.", "error");
+    }
+  };
+
   const handleEdit = (m: Material) => {
     setFormData({
       name: m.name,
@@ -107,6 +164,20 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
       description: m.description || ''
     });
     setEditingId(m.id);
+    setActiveSubTab('slabs');
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleEditSupply = (s: Supply) => {
+    setSupplyFormData({
+      name: s.name,
+      price_per_meter: s.price_per_meter?.toString() || '0',
+      minutes_per_meter: s.minutes_per_meter?.toString() || '0',
+      unit: s.unit || 'un'
+    });
+    setEditingId(s.id);
+    setActiveSubTab('supplies');
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -123,36 +194,31 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     }
   };
 
+  const handleDeleteSupply = async (id: number) => {
+    if (confirm('Deseja realmente excluir este insumo?')) {
+      const res = await fetch(`/api/supplies/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast("Insumo removido.");
+        fetchSupplies();
+      } else {
+        showToast("Erro ao excluir insumo.", "error");
+      }
+    }
+  };
+
   const handleDeleteRemnant = async (id: number) => {
     if (confirm('Deseja remover este retalho do inventário?')) {
       const res = await fetch(`/api/remnants/${id}`, { method: 'DELETE' });
       if (res.ok) {
         showToast("Retalho removido.");
         fetchRemnants();
+      } else {
+        showToast("Erro ao excluir retalho.", "error");
       }
     }
   };
 
-  const handleAddStockSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stockEntryMaterial || !stockAmount) return;
 
-    const newQty = stockEntryMaterial.quantity + parseFloat(stockAmount);
-    const res = await fetch(`/api/materials/${stockEntryMaterial.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quantity: newQty })
-    });
-
-    if (res.ok) {
-      showToast(`Estoque atualizado: +${stockAmount} m²`);
-      setStockEntryMaterial(null);
-      setStockAmount('');
-      fetchMaterials();
-    } else {
-      showToast("Erro ao atualizar estoque.", "error");
-    }
-  };
 
   return (
     <div className="space-y-8">
@@ -180,6 +246,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
               setEditingId(null);
               setFormData({ name: '', price: '', quantity: '', description: '' });
               setRemnantFormData({ material_id: '', width: '', length: '', quantity: '1', location: '', observations: '' });
+              setSupplyFormData({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un' });
             }
             setShowForm(!showForm);
           }}
@@ -339,43 +406,61 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
       </AnimatePresence>
 
       {activeSubTab === 'slabs' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {materials.length === 0 ? (
-            <div className="md:col-span-2 lg:col-span-3 bg-secondary-dark p-10 rounded-xl border border-border-dark text-center text-slate-500">
-              Nenhum material cadastrado.
-            </div>
-          ) : filteredMaterials.length === 0 ? (
-            <div className="md:col-span-2 lg:col-span-3 bg-secondary-dark p-10 rounded-xl border border-border-dark text-center text-slate-500">
-              Nenhum material encontrado para essa busca.
-            </div>
-          ) : filteredMaterials.map(m => (
-            <div key={m.id} className="bg-secondary-dark p-6 rounded-xl border border-border-dark hover:border-primary/50 transition-all relative group shadow-sm">
-              <div className="absolute top-4 right-4 flex gap-2 transition-opacity">
-                <button onClick={() => handleEdit(m)} className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary" title="Editar">
-                  <Settings size={14} />
-                </button>
-                <button onClick={() => handleDelete(m.id)} className="p-1.5 bg-white/5 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400" title="Excluir">
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="flex justify-between items-start mb-4 pr-12">
-                <h3 className="font-bold text-lg">{m.name}</h3>
-                <span className="text-primary font-bold">R$ {m.price}/m²</span>
-              </div>
-              <p className="text-slate-500 text-sm mb-6 line-clamp-2 h-10">{m.description || 'Sem descrição.'}</p>
-              <div className="flex justify-between items-center bg-background-dark/30 p-3 rounded-lg border border-white/5">
-                <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Estoque Atual</span>
-                  <span className={`font-black text-lg ${m.quantity < 5 ? 'text-orange-500' : 'text-white'}`}>{m.quantity} m²</span>
-                </div>
-                <button onClick={() => setStockEntryMaterial(m)} className="p-2.5 bg-primary text-white rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20">
-                  <Plus size={18} />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-hidden shadow-xl">
+          <table className="w-full text-left">
+            <thead className="bg-white/5 border-b border-border-dark">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Material</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Preço (m²)</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Estoque</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Descrição</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-dark">
+              {filteredMaterials.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500 italic">
+                    {materials.length === 0 ? 'Nenhum material cadastrado.' : 'Nenhum material encontrado.'}
+                  </td>
+                </tr>
+              ) : filteredMaterials.map(m => (
+                <tr key={m.id} className="hover:bg-white/5 transition-colors group">
+                  <td className="px-6 py-4">
+                    <span className="font-bold text-sm text-primary">{m.name}</span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-300">
+                    R$ {(m.price || 0).toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className={`font-black text-sm ${(m.quantity || 0) < 5 ? 'text-orange-500' : 'text-white'}`}>
+                        {(m.quantity || 0).toFixed(2)} m²
+                      </span>
+                      <button onClick={() => setStockEntryMaterial(m)} className="p-1.5 bg-primary/10 text-primary rounded hover:bg-primary hover:text-white transition-all opacity-0 group-hover:opacity-100">
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-500 truncate max-w-[200px]">
+                    {m.description || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => handleEdit(m)} className="p-2 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+                        <Settings size={16} />
+                      </button>
+                      <button onClick={() => handleDelete(m.id)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      ) : (
+      ) : activeSubTab === 'remnants' ? (
         <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-hidden shadow-xl">
           <table className="w-full text-left">
             <thead className="bg-white/5 border-b border-border-dark">
@@ -392,7 +477,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
               {filteredRemnants.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500 italic">
-                    {remnants.length === 0 ? 'Nenhum retalho no inventário.' : 'Nenhum retalho encontrado para essa busca.'}
+                    {remnants.length === 0 ? 'Nenhum retalho no inventário.' : 'Nenhum retalho encontrado.'}
                   </td>
                 </tr>
               ) : filteredRemnants.map(r => (
@@ -423,7 +508,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                       onClick={() => handleDeleteRemnant(r.id)}
                       className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
                     >
-                      <X size={16} />
+                      <Trash2 size={16} />
                     </button>
                   </td>
                 </tr>
@@ -440,11 +525,61 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                 </div>
                 <div>
                   <span className="text-slate-500">Área Total:</span>
-                  <span className="ml-2 font-bold text-primary">{remnants.reduce((acc, r) => acc + ((r.length * r.width * r.quantity) / 1000000), 0).toFixed(2)} m²</span>
+                  <span className="ml-2 font-bold text-primary">{remnants.reduce((acc, r) => acc + (((r.length || 0) * (r.width || 0) * (r.quantity || 0)) / 1000000), 0).toFixed(2)} m²</span>
                 </div>
               </div>
             </div>
           )}
+        </div>
+      ) : (
+        <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-hidden shadow-xl">
+          <table className="w-full text-left">
+            <thead className="bg-white/5 border-b border-border-dark">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Insumo / Produto</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Unidade</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Preço</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Mins. Produção</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-dark">
+              {filteredSupplies.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500 italic">
+                    {supplies.length === 0 ? 'Nenhum insumo cadastrado.' : 'Nenhum insumo encontrado.'}
+                  </td>
+                </tr>
+              ) : filteredSupplies.map(s => (
+                <tr key={s.id} className="hover:bg-white/5 transition-colors group">
+                  <td className="px-6 py-4">
+                    <span className="font-bold text-sm text-primary">{s.name}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-[10px] bg-white/5 border border-white/10 px-2 py-1 rounded uppercase font-bold text-slate-400">
+                      {s.unit}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-300">
+                    R$ {(s.price_per_meter || 0).toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-400">
+                    {s.minutes_per_meter} min
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => handleEditSupply(s)} className="p-2 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+                        <Settings size={16} />
+                      </button>
+                      <button onClick={() => handleDeleteSupply(s.id)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

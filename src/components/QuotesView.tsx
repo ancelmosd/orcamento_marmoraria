@@ -14,14 +14,15 @@ import { normalizeSearchText, evaluateFormula } from '../utils/helpers';
 import { PhotoGallery } from './PhotoGallery';
 
 export default function QuotesView({ 
-  editId, onSave, onCancel, showToast, moduleToAdd, onModuleAdded 
+  editId, onSave, onCancel, showToast, moduleToAdd, onModuleAdded, companyInfo 
 }: { 
   editId?: number | null, 
   onSave: () => void, 
   onCancel: () => void, 
   showToast: (m: string, t?: 'success' | 'error') => void,
   moduleToAdd?: ModuleTemplate | null,
-  onModuleAdded?: () => void
+  onModuleAdded?: () => void,
+  companyInfo?: any
 }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -596,7 +597,28 @@ export default function QuotesView({
               >
                 {editId ? 'Atualizar' : 'Salvar'}
               </button>
-              <button className="py-3 bg-white/5 text-white font-bold rounded-xl border border-border-dark hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+              <button 
+                onClick={() => {
+                  try {
+                    // Montar um objeto de quote similar ao do HistoryView para o PDF
+                    const quoteData = {
+                      id: editId || 0,
+                      client_name: clients.find(c => c.id.toString() === selectedClientId)?.name || 'Cliente',
+                      client_phone: clients.find(c => c.id.toString() === selectedClientId)?.phone || '',
+                      project_name: projectName,
+                      delivery_date: deliveryDate,
+                      total_value: totalValue,
+                      items: quoteItems,
+                      services: quoteServices
+                    };
+                    generateQuotePDF(quoteData, companyInfo);
+                    showToast("PDF gerado com sucesso!");
+                  } catch (err) {
+                    showToast("Erro ao gerar PDF.", "error");
+                  }
+                }}
+                className="py-3 bg-white/5 text-white font-bold rounded-xl border border-border-dark hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+              >
                 <Download size={18} /> PDF
               </button>
             </div>

@@ -17,11 +17,13 @@ interface PhotoGalleryProps {
 export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ quoteId, showToast }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
 
   const fetchPhotos = async () => {
+    if (!quoteId) return;
     try {
-      if (!quoteId) return;
+      setIsLoading(true);
       const res = await fetch(`/api/quotes/${quoteId}/photos`);
       if (res.ok) {
         const data = await res.json();
@@ -29,6 +31,9 @@ export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ quoteId, showToast }
       }
     } catch (e) {
       console.error("Fetch photos error:", e);
+      showToast("Erro ao carregar galeria", "error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -40,8 +45,8 @@ export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ quoteId, showToast }
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      showToast("Arquivo muito grande (máx 5MB)", "error");
+    if (file.size > 10 * 1024 * 1024) { // Aumentado limite de leitura para 10MB
+      showToast("Arquivo muito grande (máx 10MB)", "error");
       return;
     }
 
@@ -49,25 +54,62 @@ export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ quoteId, showToast }
     const reader = new FileReader();
     reader.onloadend = async () => {
       try {
-        const base64 = reader.result as string;
-        const res = await fetch(`/api/quotes/${quoteId}/photos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: base64,
-            description: file.name
-          })
-        });
+        const img = new Image();
+        img.src = reader.result as string;
+        
+        img.onload = async () => {
+          // Compressão com Canvas
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
 
-        if (res.ok) {
-          showToast("Foto enviada com sucesso!");
-          fetchPhotos();
-        } else {
-          showToast("Erro ao enviar foto", "error");
-        }
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Reduz qualidade para 70% em JPEG
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+          const res = await fetch(`/api/quotes/${quoteId}/photos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: compressedBase64,
+              description: file.name
+            })
+          });
+
+          if (res.ok) {
+            showToast("Foto enviada com sucesso!");
+            fetchPhotos();
+          } else {
+            showToast("Erro ao enviar foto", "error");
+          }
+          setIsUploading(false);
+        };
+        
+        img.onerror = () => {
+          showToast("Erro ao processar imagem", "error");
+          setIsUploading(false);
+        };
+
       } catch (err) {
         showToast("Erro na conexão", "error");
-      } finally {
         setIsUploading(false);
       }
     };
@@ -99,7 +141,12 @@ export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ quoteId, showToast }
         </label>
       </div>
 
-      {photos.length === 0 ? (
+      {isLoading ? (
+        <div className="py-12 text-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-slate-500">Carregando fotos...</p>
+        </div>
+      ) : photos.length === 0 ? (
         <div className="bg-white/5 border border-dashed border-border-dark p-8 rounded-xl text-center">
           <p className="text-sm text-slate-500">Nenhuma foto anexada a este projeto.</p>
         </div>
@@ -137,7 +184,7 @@ export const PhotoGallery: React.FC<PhotoGalleryProps> = ({ quoteId, showToast }
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4"
+            className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4"
             onClick={() => setSelectedPhoto(null)}
           >
             <button className="absolute top-4 right-4 p-2 text-white hover:text-primary transition-colors">

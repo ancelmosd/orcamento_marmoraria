@@ -689,6 +689,10 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                 <span className="text-slate-500">Área Total</span>
                 <span className="font-bold">{quickStats.totalArea.toFixed(2)} m²</span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Tempo Estimado</span>
+                <span className="font-bold">{quickStats.totalHours}h {quickStats.remainingMinutes}min</span>
+              </div>
               <div className="pt-4 border-t border-border-dark">
                 <p className="text-[10px] font-bold text-primary uppercase mb-1">Total Geral</p>
                 <p className="text-4xl font-black text-primary">R$ {quickStats.totalValue.toLocaleString()}</p>

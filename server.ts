@@ -19,8 +19,8 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ limit: '10mb', extended: true }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // API Routes
   app.get("/api/notifications", async (req, res) => {
@@ -114,6 +114,32 @@ async function startServer() {
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: 'Erro ao dispensar notificações' });
+    }
+  });
+
+  app.get("/api/settings/:key", async (req, res) => {
+    try {
+      const { key } = req.params;
+      const setting = await (prisma as any).system_settings.findUnique({ where: { key } });
+      res.json(setting ? JSON.parse(setting.value) : {});
+    } catch (e) {
+      res.status(500).json({});
+    }
+  });
+
+  app.post("/api/settings/:key", async (req, res) => {
+    try {
+      const { key } = req.params;
+      const value = JSON.stringify(req.body);
+      await (prisma as any).system_settings.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value }
+      });
+      res.json({ success: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: 'Erro ao salvar configurações' });
     }
   });
 

@@ -1,52 +1,68 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Users, Package, TrendingUp, TrendingDown, Clock, Search, Plus, 
-  X, Check, AlertCircle, FileText, Settings, Download, Trash2,
-  Phone, MapPin, Calculator, Calendar, History, Save, Edit2, 
-  ArrowRight, FileOutput, GripHorizontal, Box, Layers, Scissors, 
-  RotateCw, Construction, Database, Upload, ArrowUpRight, ArrowDownRight,
-  Filter, DollarSign, Bolt, Camera, Eye
+import {
+  Plus, X, Edit2, Save, Layers, Scissors,
+  Construction, Database, Download, Upload,
+  Box, Bolt, Package, FileText, Trash2,
+  User, Users, Building2, Bell, Lock, FileCode,
+  Shield, Mail, Phone, MapPin, Briefcase, ChevronRight
 } from 'lucide-react';
-import { FINISHING_TYPES, EDGE_TYPES, Client, Material, Service, DescriptionTemplate, QuoteItem, QuoteService, ModuleTemplate, ModulePart, Supply } from '../types';
-import { normalizeSearchText, evaluateFormula } from '../utils/helpers';
+import { ModuleTemplate, Service, Supply } from '../types';
+import ServicesView from './ServicesView';
+import ModuleTemplatesView from './ModuleTemplatesView';
 
+interface SettingsViewProps {
+  showToast: (m: string, t?: 'success' | 'error') => void;
+}
 
-export default function SettingsView({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+type TabID = 'suggestions' | 'modules' | 'services' | 'supplies' | 'backup' |
+  'profile' | 'team' | 'documents' | 'company' | 'notifications' | 'security';
+
+export default function SettingsView({ showToast }: SettingsViewProps) {
+  const [activeTab, setActiveTab] = useState<TabID>('suggestions');
+
+  // States for Suggestions
   const [templates, setTemplates] = useState<{ id: number, text: string }[]>([]);
   const [newTemplate, setNewTemplate] = useState('');
-  const [moduleTemplates, setModuleTemplates] = useState<ModuleTemplate[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+
+  // States for Supplies
   const [supplies, setSupplies] = useState<Supply[]>([]);
-  const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
-  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [isSupplyModalOpen, setIsSupplyModalOpen] = useState(false);
-  const [editingModule, setEditingModule] = useState<Partial<ModuleTemplate>>({ name: '', description: '', parts: [] });
-  const [editingService, setEditingService] = useState<Partial<Service>>({ name: '', price: 0, description: '', category: 'other' });
-  const [editingSupply, setEditingSupply] = useState<Partial<Supply>>({ name: '', price_per_meter: 0, minutes_per_meter: 0, unit: 'm' });
+  const [editingSupply, setEditingSupply] = useState<Partial<Supply>>({ name: '', price_per_meter: 0, minutes_per_meter: 0, unit: 'un' });
+
+  // States for Company
+  const [companyInfo, setCompanyInfo] = useState({
+    name: '',
+    cnpj: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+
+  useEffect(() => {
+    fetchTemplates();
+    fetchSupplies();
+    fetchCompanyInfo();
+  }, []);
+
+  const fetchCompanyInfo = () => {
+    fetch('/api/settings/company')
+      .then(r => r.json())
+      .then(data => {
+        if (Object.keys(data).length > 0) setCompanyInfo(data);
+      });
+  };
 
   const fetchTemplates = () => {
     fetch('/api/description-templates').then(r => r.json()).then(setTemplates);
   };
 
-  const fetchModuleTemplates = () => {
-    fetch('/api/module-templates').then(r => r.json()).then(setModuleTemplates);
-  };
-
-  const fetchServices = () => {
-    fetch('/api/services').then(r => r.json()).then(setServices);
-  };
-
   const fetchSupplies = () => {
-    fetch('/api/supplies').then(r => r.json()).then(setSupplies);
+    fetch('/api/supplies')
+      .then(r => r.json())
+      .then(data => setSupplies(Array.isArray(data) ? data : []))
+      .catch(() => setSupplies([]));
   };
-
-  useEffect(() => {
-    fetchTemplates();
-    fetchModuleTemplates();
-    fetchServices();
-    fetchSupplies();
-  }, []);
 
   const handleAddTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,62 +89,6 @@ export default function SettingsView({ showToast }: { showToast: (m: string, t?:
       if (res.ok) {
         fetchTemplates();
         showToast("Descrição removida.");
-      }
-    }
-  };
-
-  const handleSaveModule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const method = editingModule.id ? 'PUT' : 'POST';
-    const url = editingModule.id ? `/api/module-templates/${editingModule.id}` : '/api/module-templates';
-
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingModule)
-    });
-
-    if (res.ok) {
-      setIsModuleModalOpen(false);
-      fetchModuleTemplates();
-      showToast("Módulo salvo com sucesso!");
-    }
-  };
-
-  const handleDeleteModule = async (id: number) => {
-    if (confirm('Deseja excluir este módulo?')) {
-      const res = await fetch(`/api/module-templates/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchModuleTemplates();
-        showToast("Módulo removido.");
-      }
-    }
-  };
-
-  const handleSaveService = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const method = editingService.id ? 'PUT' : 'POST';
-    const url = editingService.id ? `/api/services/${editingService.id}` : '/api/services';
-
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editingService)
-    });
-
-    if (res.ok) {
-      setIsServiceModalOpen(false);
-      fetchServices();
-      showToast("Serviço salvo com sucesso!");
-    }
-  };
-
-  const handleDeleteService = async (id: number) => {
-    if (confirm('Deseja excluir este serviço?')) {
-      const res = await fetch(`/api/services/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchServices();
-        showToast("Serviço removido.");
       }
     }
   };
@@ -192,812 +152,579 @@ export default function SettingsView({ showToast }: { showToast: (m: string, t?:
     e.target.value = '';
   };
 
+  const tabs: { id: TabID, label: string, icon: any, category?: string }[] = [
+    { id: 'profile', label: 'Meu Perfil', icon: <User size={18} />, category: 'Pessoal' },
+    { id: 'security', label: 'Segurança', icon: <Shield size={18} />, category: 'Pessoal' },
+    { id: 'company', label: 'Empresa', icon: <Building2 size={18} />, category: 'Geral' },
+    { id: 'notifications', label: 'Notificações', icon: <Bell size={18} />, category: 'Geral' },
+    { id: 'backup', label: 'Backup', icon: <Database size={18} />, category: 'Geral' },
+    { id: 'services', label: 'Serviços', icon: <Construction size={18} />, category: 'Técnico' },
+    { id: 'modules', label: 'Módulos', icon: <Box size={18} />, category: 'Técnico' },
+    { id: 'supplies', label: 'Insumos', icon: <Package size={18} />, category: 'Técnico' },
+    { id: 'suggestions', label: 'Sugestões', icon: <FileText size={18} />, category: 'Técnico' },
+    { id: 'team', label: 'Equipe', icon: <Users size={18} />, category: 'Administrativo' },
+    { id: 'documents', label: 'Documentos', icon: <FileCode size={18} />, category: 'Administrativo' },
+  ];
+
   return (
-    <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-black tracking-tight">Configurações</h1>
-        <p className="text-slate-500">Gerencie as preferências e listas do sistema.</p>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-1">
+        <p className="text-primary text-sm font-semibold uppercase tracking-wider">Painel de Controle</p>
+        <h1 className="text-4xl font-black tracking-tight">Configurações</h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
-          <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
-            <Layers className="w-5 h-5" /> Sugestões de Descrição
-          </h3>
-          <p className="text-sm text-slate-400">
-            Cadastre aqui as descrições que mais utiliza (ex: Bancada, Rodapé, Soleira) para que apareçam como sugestão na calculadora.
-          </p>
-
-          <form onSubmit={handleAddTemplate} className="flex gap-2">
-            <input
-              value={newTemplate}
-              onChange={e => setNewTemplate(e.target.value)}
-              className="flex-1 bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-              placeholder="Nova descrição..."
-            />
-            <button type="submit" className="bg-primary p-2 rounded-lg text-white hover:opacity-90 transition-opacity">
-              <Plus size={20} />
-            </button>
-          </form>
-
-          <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-            {templates.map(t => (
-              <div key={t.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
-                <span className="text-sm">{t.text}</span>
-                <button
-                  onClick={() => handleDeleteTemplate(t.id)}
-                  className="text-slate-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                >
-                  <X size={16} />
-                </button>
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Sidebar Tabs */}
+        <aside className="lg:w-40 flex-shrink-0">
+          <nav className="bg-secondary-dark rounded-2xl border border-border-dark p-2 space-y-1">
+            {/* Grouping tabs by category */}
+            {['Pessoal', 'Geral', 'Técnico', 'Administrativo'].map(category => (
+              <div key={category} className="space-y-0.5 pt-2 first:pt-0">
+                <p className="px-3 text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{category}</p>
+                {tabs.filter(t => t.category === category).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center justify-between gap-2.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all group ${activeTab === tab.id
+                      ? 'bg-primary text-white shadow-md shadow-primary/20'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {React.cloneElement(tab.icon, { size: 14 })}
+                      {tab.label}
+                    </div>
+                    {activeTab === tab.id && <ChevronRight size={12} className="text-white/50" />}
+                  </button>
+                ))}
               </div>
             ))}
-            {templates.length === 0 && (
-              <p className="text-center py-4 text-slate-500 text-sm italic">Nenhuma sugestão cadastrada.</p>
-            )}
-          </div>
-        </div>
+          </nav>
+        </aside>
 
-        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
-              <Bolt className="w-5 h-5" /> Módulos de Orçamento
-            </h3>
-            <button
-              onClick={() => {
-                setEditingModule({ name: '', description: '', parts: [] });
-                setIsModuleModalOpen(true);
-              }}
-              className="bg-primary/10 text-primary p-2 rounded-lg hover:bg-primary hover:text-white transition-all"
+        {/* Content Area */}
+        <main className="flex-1 min-w-0">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
             >
-              <Plus size={20} />
-            </button>
-          </div>
-          <p className="text-sm text-slate-400">
-            Configure módulos com fórmulas automáticas para agilizar seus orçamentos.
-          </p>
+              {activeTab === 'suggestions' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-8">
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                      <FileText className="text-primary" /> Sugestões de Descrição
+                    </h3>
+                    <p className="text-sm text-slate-400">Cadastre descrições padrão para novos orçamentos.</p>
+                  </div>
 
-          <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-            {moduleTemplates.map(m => (
-              <div key={m.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold">{m.name}</span>
-                  <span className="text-[10px] text-slate-500">{m.parts.length} peças configuradas</span>
+                  <form onSubmit={handleAddTemplate} className="flex gap-2">
+                    <input
+                      value={newTemplate}
+                      onChange={e => setNewTemplate(e.target.value)}
+                      className="flex-1 bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+                      placeholder="Ex: Bancada com Cuba Esculpida..."
+                    />
+                    <button type="submit" className="bg-primary p-3 rounded-xl text-white hover:opacity-90 transition-all shadow-lg shadow-primary/20">
+                      <Plus size={24} />
+                    </button>
+                  </form>
+
+                  <div className="bg-background-dark rounded-xl border border-border-dark overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-white/5 border-b border-border-dark">
+                        <tr>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Descrição</th>
+                          <th className="px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-dark">
+                        {templates.map(t => (
+                          <tr key={t.id} className="hover:bg-white/5 transition-colors group">
+                            <td className="px-4 py-3 text-sm font-medium">{t.text}</td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => handleDeleteTemplate(t.id)}
+                                className="text-slate-500 hover:text-red-500 p-1.5 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                              >
+                                <X size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {templates.length === 0 && (
+                    <div className="col-span-full py-12 text-center bg-background-dark rounded-xl border border-dashed border-border-dark">
+                      <p className="text-slate-500 text-sm italic">Nenhuma sugestão cadastrada.</p>
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                  <button
-                    onClick={() => {
-                      setEditingModule(m);
-                      setIsModuleModalOpen(true);
-                    }}
-                    className="text-slate-500 hover:text-primary"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteModule(m.id)}
-                    className="text-slate-500 hover:text-red-500"
-                  >
-                    <X size={16} />
-                  </button>
+              )}
+
+              {activeTab === 'modules' && <ModuleTemplatesView showToast={showToast} />}
+              {activeTab === 'services' && <ServicesView searchTerm="" showToast={showToast} />}
+
+              {activeTab === 'supplies' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-8">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                        <Package className="text-primary" /> Insumos e Produtos
+                      </h3>
+                      <p className="text-sm text-slate-400">Gerencie acessórios, colas, cubas e outros itens.</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setEditingSupply({ name: '', price_per_meter: 0, minutes_per_meter: 0, unit: 'un' });
+                        setIsSupplyModalOpen(true);
+                      }}
+                      className="bg-primary text-white px-6 py-3 rounded-xl hover:opacity-90 transition-all flex items-center gap-2 text-sm font-bold shadow-lg shadow-primary/20"
+                    >
+                      <Plus size={18} /> Novo Insumo
+                    </button>
+                  </div>
+
+                  <div className="bg-background-dark rounded-2xl border border-border-dark overflow-hidden shadow-xl">
+                    <table className="w-full text-left">
+                      <thead className="bg-white/5 border-b border-border-dark">
+                        <tr>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nome do Insumo</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Unidade</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Tempo Prod.</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Preço Venda</th>
+                          <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border-dark">
+                        {(supplies || []).map(s => (
+                          <tr key={s.id} className="hover:bg-white/5 transition-colors group">
+                            <td className="px-6 py-4">
+                              <span className="font-black text-white">{s.name}</span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full font-black uppercase tracking-wider">{s.unit || 'un'}</span>
+                            </td>
+                            <td className="px-6 py-4 text-center text-sm font-mono text-slate-400">
+                              {(s.minutes_per_meter || 0)} min
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <span className="font-black text-primary">R$ {(s.price_per_meter || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => { setEditingSupply(s); setIsSupplyModalOpen(true); }}
+                                  className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-primary transition-all"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteSupply(s.id)}
+                                  className="p-2 hover:bg-white/5 rounded-xl text-slate-500 hover:text-red-500 transition-all"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {(!supplies || supplies.length === 0) && (
+                      <div className="py-20 text-center">
+                        <Package className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+                        <p className="text-slate-500 text-sm italic">Nenhum insumo cadastrado.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {moduleTemplates.length === 0 && (
-              <p className="text-center py-4 text-slate-500 text-sm italic">Nenhum módulo cadastrado.</p>
-            )}
-          </div>
-        </div>
+              )}
 
-        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
-              <Construction className="w-5 h-5" /> Serviços
-            </h3>
-            <button
-              onClick={() => {
-                setEditingService({ name: '', price: 0, description: '', category: 'other' });
-                setIsServiceModalOpen(true);
-              }}
-              className="bg-primary/10 text-primary p-2 rounded-lg hover:bg-primary hover:text-white transition-all"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={async () => {
-                if (!confirm('Deseja adicionar os tipos de acabamento padrão ao catálogo?')) return;
-                const types = ['Polido', 'Levigado', 'Escovado', 'Bruto', 'Jateado', 'Flamejado', 'Apicoado'];
-                let count = 0;
-                for (const name of types) {
-                  if (!services.some(s => s.name === name && s.category === 'finish')) {
-                    await fetch('/api/services', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name, price: 0, category: 'finish', description: 'Acabamento padrão' })
-                    });
-                    count++;
-                  }
-                }
-                showToast(`${count} acabamentos adicionados.`);
-                fetchServices();
-              }}
-              className="flex-1 bg-background-dark border border-border-dark px-3 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 hover:bg-white/5 transition-colors"
-            >
-              <Layers size={14} className="text-primary" /> Sugerir Acabamentos
-            </button>
-            <button
-              onClick={async () => {
-                if (!confirm('Deseja adicionar os tipos de borda padrão ao catálogo?')) return;
-                const types = ['45 Graus', 'Reto', 'Boleado', 'Meia Cana', 'Bisotê', 'Pingadeira', 'Peito de Pombo'];
-                let count = 0;
-                for (const name of types) {
-                  if (!services.some(s => s.name === name && s.category === 'edge')) {
-                    await fetch('/api/services', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name, price: 0, category: 'edge', description: 'Borda padrão' })
-                    });
-                    count++;
-                  }
-                }
-                showToast(`${count} bordas adicionadas.`);
-                fetchServices();
-              }}
-              className="flex-1 bg-background-dark border border-border-dark px-3 py-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-2 hover:bg-white/5 transition-colors"
-            >
-              <Scissors size={14} className="text-primary" /> Sugerir Bordas
-            </button>
-          </div>
-
-          <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2">
-            {['finish', 'edge', 'other'].map(cat => (
-              <div key={cat} className="space-y-2">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-white/5 pb-1">
-                  {cat === 'finish' ? 'Acabamentos' : cat === 'edge' ? 'Bordas' : 'Outros'}
-                </h4>
-                {services.filter(s => s.category === cat).map(s => (
-                  <div key={s.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold">{s.name}</span>
-                      <div className="flex gap-2 text-[10px] text-slate-500">
-                        <span>R$ {s.price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/m</span>
-                        {s.minutes_per_meter > 0 && <span>• {s.minutes_per_meter} min/m</span>}
+              {activeTab === 'company' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-8">
+                  <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                    <Building2 className="text-primary" /> Informações da Empresa
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome Fantasia</label>
+                        <input 
+                          value={companyInfo.name}
+                          onChange={e => setCompanyInfo({...companyInfo, name: e.target.value})}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                          placeholder="Marmoraria Exemplo" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CNPJ</label>
+                        <input 
+                          value={companyInfo.cnpj}
+                          onChange={e => setCompanyInfo({...companyInfo, cnpj: e.target.value})}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                          placeholder="00.000.000/0001-00" 
+                        />
                       </div>
                     </div>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                      <button
-                        onClick={() => {
-                          setEditingService(s);
-                          setIsServiceModalOpen(true);
-                        }}
-                        className="text-slate-500 hover:text-primary"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteService(s.id)}
-                        className="text-slate-500 hover:text-red-500"
-                      >
-                        <X size={16} />
-                      </button>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">E-mail Comercial</label>
+                        <input 
+                          value={companyInfo.email}
+                          onChange={e => setCompanyInfo({...companyInfo, email: e.target.value})}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                          placeholder="contato@empresa.com" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone / WhatsApp</label>
+                        <input 
+                          value={companyInfo.phone}
+                          onChange={e => setCompanyInfo({...companyInfo, phone: e.target.value})}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                          placeholder="(00) 00000-0000" 
+                        />
+                      </div>
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Endereço Completo</label>
+                      <input 
+                        value={companyInfo.address}
+                        onChange={e => setCompanyInfo({...companyInfo, address: e.target.value})}
+                        className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                        placeholder="Rua Exemplo, 123 - Centro" 
+                      />
                     </div>
                   </div>
-                ))}
-                {services.filter(s => s.category === cat).length === 0 && (
-                  <p className="text-[10px] text-slate-600 italic py-1">Nenhum serviço nesta categoria.</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+                  <button 
+                    onClick={async () => {
+                      const res = await fetch('/api/settings/company', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(companyInfo)
+                      });
+                      if (res.ok) showToast("Informações da empresa salvas com sucesso!");
+                    }}
+                    className="bg-primary text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
+                  >
+                    Salvar Alterações
+                  </button>
+                </div>
+              )}
 
-        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
-              <Package className="w-5 h-5" /> Insumos
-            </h3>
-            <button
-              onClick={() => {
-                setEditingSupply({ name: '', price_per_meter: 0, minutes_per_meter: 0, unit: 'm' });
-                setIsSupplyModalOpen(true);
-              }}
-              className="bg-primary/10 text-primary p-2 rounded-lg hover:bg-primary hover:text-white transition-all"
-            >
-              <Plus size={20} />
-            </button>
-          </div>
-          <p className="text-sm text-slate-400">
-            Gerencie insumos como cola, lixa, água, etc.
-          </p>
-
-          <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-            {supplies.map(s => (
-              <div key={s.id} className="flex justify-between items-center p-3 bg-background-dark rounded-lg border border-border-dark group">
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold">{s.name}</span>
-                  <div className="flex gap-2 text-[10px] text-slate-500">
-                    <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{s.unit || 'm'}</span>
-                    <span>R$ {s.price_per_meter.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/{s.unit || 'm'}</span>
-                    <span>• {s.minutes_per_meter} min/{s.unit || 'm'}</span>
+              {activeTab === 'profile' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-8">
+                  <div className="flex flex-col md:flex-row items-center gap-8 pb-8 border-b border-white/5">
+                    <div className="relative group">
+                      <div className="w-32 h-32 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white text-4xl font-black border-4 border-background-dark shadow-2xl">
+                        AS
+                      </div>
+                      <button className="absolute bottom-0 right-0 p-2 bg-background-dark border border-border-dark rounded-full text-primary hover:bg-primary hover:text-white transition-all shadow-lg">
+                        <Edit2 size={16} />
+                      </button>
+                    </div>
+                    <div className="text-center md:text-left">
+                      <h3 className="text-3xl font-black text-white">Administrador do Sistema</h3>
+                      <p className="text-slate-400 flex items-center justify-center md:justify-start gap-2 mt-1">
+                        <Mail size={14} /> admin@marmoraria.com.br
+                      </p>
+                      <div className="flex gap-2 mt-4 justify-center md:justify-start">
+                        <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Proprietário</span>
+                        <span className="bg-green-500/10 text-green-500 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">Ativo</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome Completo</label>
+                      <input className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" defaultValue="Administrador Sistema" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Cargo / Função</label>
+                      <input className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" defaultValue="Proprietário" />
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                  <button
-                    onClick={() => {
-                      setEditingSupply(s);
-                      setIsSupplyModalOpen(true);
-                    }}
-                    className="text-slate-500 hover:text-primary"
-                  >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSupply(s.id)}
-                    className="text-slate-500 hover:text-red-500"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {supplies.length === 0 && (
-              <p className="text-center py-4 text-slate-500 text-sm italic">Nenhum insumo cadastrado.</p>
-            )}
-          </div>
-        </div>
-        <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark space-y-6 lg:col-span-2">
-          <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
-            <Database className="w-5 h-5" /> Backup e Restauração
-          </h3>
-          <p className="text-sm text-slate-400">
-            Gerencie a segurança dos seus dados. Recomendamos fazer backup regularmente.
-          </p>
+              )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              onClick={handleBackup}
-              className="flex items-center justify-center gap-3 bg-primary/10 border border-primary/20 text-primary p-4 rounded-xl font-bold hover:bg-primary hover:text-white transition-all group"
-            >
-              <Download className="w-6 h-6 group-hover:scale-110 transition-transform" />
-              <div className="text-left">
-                <p className="text-sm">Fazer Backup</p>
-                <p className="text-[10px] font-normal opacity-70">Baixar arquivo de dados (.json)</p>
-              </div>
-            </button>
-
-            <div className="relative">
-              <input
-                type="file"
-                accept=".json"
-                onChange={handleRestore}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
-              <div className="flex items-center justify-center gap-3 bg-orange-500/10 border border-orange-500/20 text-orange-400 p-4 rounded-xl font-bold hover:bg-orange-500 hover:text-white transition-all group">
-                <Upload className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                <div className="text-left">
-                  <p className="text-sm">Restaurar Backup</p>
-                  <p className="text-[10px] font-normal opacity-70">Substituir dados por um arquivo .json</p>
+              {activeTab === 'team' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-8">
+                  <div className="flex justify-between items-center">
+                    <div className="space-y-1">
+                      <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                        <Users className="text-primary" /> Gestão da Equipe
+                      </h3>
+                      <p className="text-sm text-slate-400">Controle o acesso de funcionários ao sistema.</p>
+                    </div>
+                    <button className="bg-primary/10 text-primary px-6 py-3 rounded-xl text-sm font-bold hover:bg-primary hover:text-white transition-all flex items-center gap-2">
+                      <Plus size={18} /> Convidar Membro
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[
+                      { name: 'Ricardo Silva', role: 'Vendedor', email: 'ricardo@marmoraria.com' },
+                      { name: 'Ana Oliveira', role: 'Financeiro', email: 'ana@marmoraria.com' },
+                      { name: 'Carlos Santos', role: 'Produção', email: 'carlos@marmoraria.com' },
+                    ].map((member, i) => (
+                      <div key={i} className="flex justify-between items-center p-5 bg-background-dark rounded-2xl border border-border-dark group hover:border-primary/30 transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center font-black text-sm text-primary border border-white/5">
+                            {member.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div>
+                            <p className="font-black text-white">{member.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{member.role}</span>
+                              <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
+                              <span className="text-[10px] text-slate-500 font-medium">{member.email}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-xl transition-all">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
+              )}
+
+              {activeTab === 'documents' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-8">
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                      <FileCode className="text-primary" /> Modelos de Documentos
+                    </h3>
+                    <p className="text-sm text-slate-400">Edite as cláusulas e formatos dos documentos gerados.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {['Contrato de Prestação de Serviço', 'Termo de Garantia', 'Recibo de Pagamento', 'Ordem de Serviço'].map((doc, i) => (
+                      <div key={i} className="p-6 bg-background-dark rounded-2xl border border-border-dark flex items-center justify-between hover:border-primary/50 transition-all cursor-pointer group shadow-lg">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-white transition-all">
+                            <FileText size={24} />
+                          </div>
+                          <span className="font-black text-sm">{doc}</span>
+                        </div>
+                        <ChevronRight size={20} className="text-slate-700 group-hover:text-primary transition-all" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'notifications' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-8">
+                  <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                    <Bell className="text-primary" /> Notificações do Sistema
+                  </h3>
+                  <div className="space-y-4">
+                    {[
+                      { label: 'E-mail ao aprovar orçamento', desc: 'Enviar e-mail automático para o cliente quando o status mudar para aprovado.' },
+                      { label: 'Alertas de estoque baixo', desc: 'Notificar quando uma chapa atingir a quantidade mínima.' },
+                      { label: 'Lembrete de prazos', desc: 'Notificar 48h antes da data de entrega prevista.' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center justify-between p-6 bg-background-dark rounded-2xl border border-border-dark hover:border-white/10 transition-all">
+                        <div className="max-w-[70%]">
+                          <p className="font-black text-white">{item.label}</p>
+                          <p className="text-xs text-slate-500 mt-1">{item.desc}</p>
+                        </div>
+                        <div className="w-14 h-7 bg-primary rounded-full relative cursor-pointer border-2 border-white/10">
+                          <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-lg"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'security' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-10">
+                  <div className="space-y-6">
+                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                      <Shield className="text-primary" /> Segurança e Senha
+                    </h3>
+                    <div className="max-w-md space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Senha Atual</label>
+                        <input type="password" placeholder="••••••••" className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nova Senha</label>
+                        <input type="password" placeholder="••••••••" className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Confirmar Nova Senha</label>
+                        <input type="password" placeholder="••••••••" className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" />
+                      </div>
+                      <button className="w-full bg-primary text-white py-3 rounded-xl font-black shadow-xl shadow-primary/20 hover:opacity-90 active:scale-95 transition-all">Atualizar Senha</button>
+                    </div>
+                  </div>
+
+                  <div className="pt-10 border-t border-white/5 space-y-6">
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Sessões Ativas</h4>
+                    <div className="flex justify-between items-center p-6 bg-background-dark rounded-2xl border border-border-dark group">
+                      <div className="flex items-center gap-5">
+                        <div className="p-3 bg-white/5 rounded-xl text-primary border border-white/5">
+                          <Monitor size={24} />
+                        </div>
+                        <div className="text-xs">
+                          <p className="font-black text-white text-sm">Windows 11 • Google Chrome</p>
+                          <p className="text-slate-500 mt-1 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            Este dispositivo • São Paulo, Brasil
+                          </p>
+                        </div>
+                      </div>
+                      <button className="text-[10px] font-black uppercase text-red-500 hover:bg-red-500/10 px-4 py-2 rounded-lg transition-all border border-red-500/20">Encerrar Sessão</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'backup' && (
+                <div className="bg-secondary-dark p-8 rounded-2xl border border-border-dark space-y-10">
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-black text-white flex items-center gap-3">
+                      <Database className="text-primary" /> Backup e Restauração
+                    </h3>
+                    <p className="text-sm text-slate-400">Proteja seus dados. Recomendamos baixar o backup semanalmente.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <button
+                      onClick={handleBackup}
+                      className="flex flex-col items-center justify-center gap-4 bg-primary/5 border-2 border-primary/20 text-primary p-10 rounded-3xl font-black hover:bg-primary hover:text-white transition-all group shadow-xl shadow-primary/5"
+                    >
+                      <Download className="w-12 h-12 group-hover:scale-110 transition-transform" />
+                      <div className="text-center">
+                        <p className="text-lg">Exportar Backup</p>
+                        <p className="text-xs font-normal opacity-70 mt-1">Baixar todos os dados (.json)</p>
+                      </div>
+                    </button>
+
+                    <div className="relative group">
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={handleRestore}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      />
+                      <div className="flex flex-col items-center justify-center gap-4 bg-orange-500/5 border-2 border-orange-500/20 text-orange-400 p-10 rounded-3xl font-black hover:bg-orange-500 hover:text-white transition-all shadow-xl shadow-orange-500/5">
+                        <Upload className="w-12 h-12 group-hover:scale-110 transition-transform" />
+                        <div className="text-center">
+                          <p className="text-lg">Importar Backup</p>
+                          <p className="text-xs font-normal opacity-70 mt-1">Restaurar via arquivo externo</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-500/5 border border-yellow-500/20 p-6 rounded-2xl flex items-start gap-4">
+                    <Bolt className="text-yellow-500 mt-1 flex-shrink-0" size={20} />
+                    <div className="text-xs text-yellow-200/70 leading-relaxed">
+                      <p className="font-black text-yellow-500 uppercase tracking-widest mb-1">Nota de Segurança</p>
+                      A restauração de backup substituirá permanentemente todos os dados atuais do banco de dados (clientes, orçamentos, materiais, etc). Certifique-se de estar usando o arquivo correto.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </main>
       </div>
 
+      {/* Modal for Supplies */}
       <AnimatePresence>
         {isSupplyModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-secondary-dark border border-border-dark rounded-xl p-6 w-full max-w-md shadow-2xl"
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-secondary-dark border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl overflow-hidden relative"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-primary">{editingSupply.id ? 'Editar Insumo' : 'Novo Insumo'}</h3>
-                <button onClick={() => setIsSupplyModalOpen(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
-                  <X size={20} />
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-primary-dark"></div>
+
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="text-2xl font-black text-white">{editingSupply.id ? 'Editar Insumo' : 'Novo Insumo'}</h3>
+                <button onClick={() => setIsSupplyModalOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-500">
+                  <X size={24} />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveSupply} className="space-y-4">
+              <form onSubmit={handleSaveSupply} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Insumo</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome do Insumo</label>
                   <input
                     required
                     value={editingSupply.name}
                     onChange={e => setEditingSupply({ ...editingSupply, name: e.target.value })}
-                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                    placeholder="Ex: Cola Cuba"
+                    className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 text-sm transition-all"
+                    placeholder="Ex: Cuba de Inox Tramontina"
                   />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço por Metro (R$)</label>
-                    <input
-                      required
-                      type="number"
-                      step="0.01"
-                      value={editingSupply.price_per_meter}
-                      onChange={e => setEditingSupply({ ...editingSupply, price_per_meter: parseFloat(e.target.value) })}
-                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                    />
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Preço Unitário</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 text-sm font-bold">R$</span>
+                      <input
+                        required
+                        type="number"
+                        step="0.01"
+                        value={editingSupply.price_per_meter}
+                        onChange={e => setEditingSupply({ ...editingSupply, price_per_meter: parseFloat(e.target.value) })}
+                        className="w-full bg-background-dark border border-border-dark rounded-xl pl-10 pr-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minutos por Metro</label>
-                    <input
-                      required
-                      type="number"
-                      value={editingSupply.minutes_per_meter}
-                      onChange={e => setEditingSupply({ ...editingSupply, minutes_per_meter: parseFloat(e.target.value) })}
-                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Unidade de Medida</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Unidade</label>
                     <select
-                      value={editingSupply.unit || 'm'}
+                      value={editingSupply.unit || 'un'}
                       onChange={e => setEditingSupply({ ...editingSupply, unit: e.target.value })}
-                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
+                      className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 text-sm appearance-none"
                     >
                       <option value="un">Unidade (un)</option>
                       <option value="m">Metro (m)</option>
                       <option value="m²">Metro² (m²)</option>
-                      <option value="m³">Metro³ (m³)</option>
-                      <option value="kg">Quilograma (kg)</option>
+                      <option value="kg">Quilo (kg)</option>
                       <option value="L">Litro (L)</option>
-                      <option value="mL">Mililitro (mL)</option>
                     </select>
                   </div>
                 </div>
-                <div className="flex gap-3 pt-4">
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Esforço Produção (minutos)</label>
+                  <input
+                    required
+                    type="number"
+                    value={editingSupply.minutes_per_meter}
+                    onChange={e => setEditingSupply({ ...editingSupply, minutes_per_meter: parseFloat(e.target.value) })}
+                    className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
                   <button
                     type="button"
                     onClick={() => setIsSupplyModalOpen(false)}
-                    className="flex-1 py-2 rounded-lg font-bold text-slate-400 hover:bg-white/5 transition-colors"
+                    className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-white/5 transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2 bg-primary text-white rounded-lg font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
+                    className="flex-1 py-4 bg-primary text-white rounded-xl font-black shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-[0.98] transition-all"
                   >
-                    Salvar
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isModuleModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-secondary-dark border border-border-dark rounded-xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-primary">{editingModule.id ? 'Editar Módulo' : 'Novo Módulo'}</h3>
-                <button onClick={() => setIsModuleModalOpen(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveModule} className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Módulo</label>
-                    <input
-                      required
-                      value={editingModule.name}
-                      onChange={e => setEditingModule({ ...editingModule, name: e.target.value })}
-                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                      placeholder="Ex: Área Seca"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
-                    <input
-                      value={editingModule.description}
-                      onChange={e => setEditingModule({ ...editingModule, description: e.target.value })}
-                      className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                      placeholder="Opcional..."
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Peças e Fórmulas</h4>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newPart: ModulePart = { id: Math.random().toString(36).substr(2, 9), name: '', formula_l: 'L', formula_p: 'P', quantity: 1 };
-                        setEditingModule({ ...editingModule, parts: [newPart, ...(editingModule.parts || [])] });
-                      }}
-                      className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-lg hover:bg-primary hover:text-white transition-all flex items-center gap-1"
-                    >
-                      <Plus size={14} /> Adicionar Peça
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {editingModule.parts?.map((part, index) => (
-                      <div key={part.id} className="p-4 bg-background-dark rounded-lg border border-border-dark space-y-3 relative group">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newParts = [...(editingModule.parts || [])];
-                            newParts.splice(index, 1);
-                            setEditingModule({ ...editingModule, parts: newParts });
-                          }}
-                          className="absolute top-2 right-2 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <X size={14} />
-                        </button>
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                          <div className="sm:col-span-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Nome da Peça</label>
-                            <input
-                              required
-                              value={part.name}
-                              onChange={e => {
-                                const newParts = [...(editingModule.parts || [])];
-                                newParts[index].name = e.target.value;
-                                setEditingModule({ ...editingModule, parts: newParts });
-                              }}
-                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
-                              placeholder="Ex: Tampo"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Largura (Fórmula)</label>
-                            <input
-                              required
-                              value={part.formula_l}
-                              onChange={e => {
-                                const newParts = [...(editingModule.parts || [])];
-                                newParts[index].formula_l = e.target.value;
-                                setEditingModule({ ...editingModule, parts: newParts });
-                              }}
-                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-mono"
-                              placeholder="Ex: L - 20"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Profund. (Fórmula)</label>
-                            <input
-                              required
-                              value={part.formula_p}
-                              onChange={e => {
-                                const newParts = [...(editingModule.parts || [])];
-                                newParts[index].formula_p = e.target.value;
-                                setEditingModule({ ...editingModule, parts: newParts });
-                              }}
-                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary font-mono"
-                              placeholder="Ex: P"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Qtd</label>
-                            <input
-                              required
-                              type="number"
-                              value={part.quantity}
-                              onChange={e => {
-                                const newParts = [...(editingModule.parts || [])];
-                                newParts[index].quantity = parseInt(e.target.value) || 1;
-                                setEditingModule({ ...editingModule, parts: newParts });
-                              }}
-                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Acabamento Padrão</label>
-                            <select
-                              value={part.finish || 'Polido'}
-                              onChange={e => {
-                                const newParts = [...(editingModule.parts || [])];
-                                newParts[index].finish = e.target.value;
-                                setEditingModule({ ...editingModule, parts: newParts });
-                              }}
-                              className="w-full bg-secondary-dark border border-border-dark rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-primary"
-                            >
-                              {services.filter(s => s.category === 'finish').length > 0 ? (
-                                services.filter(s => s.category === 'finish').map(s => (
-                                  <option key={s.id} value={s.name}>{s.name}</option>
-                                ))
-                              ) : (
-                                FINISHING_TYPES.map(type => (
-                                  <option key={type} value={type}>{type}</option>
-                                ))
-                              )}
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Bordas Padrão</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                              {['top', 'bottom', 'left', 'right'].map((side) => (
-                                <div key={side} className="bg-secondary-dark p-1.5 rounded border border-border-dark space-y-0.5">
-                                  <span className="text-[8px] font-bold text-slate-500 uppercase block">
-                                    {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
-                                  </span>
-                                  <select
-                                    value={part.edges?.[side as keyof typeof part.edges] || 'Nenhum'}
-                                    onChange={(e) => {
-                                      const newParts = [...(editingModule.parts || [])];
-                                      if (!newParts[index].edges) {
-                                        newParts[index].edges = { top: 'Nenhum', bottom: 'Nenhum', left: 'Nenhum', right: 'Nenhum' };
-                                      }
-                                      newParts[index].edges = {
-                                        ...newParts[index].edges!,
-                                        [side]: e.target.value
-                                      };
-                                      setEditingModule({ ...editingModule, parts: newParts });
-                                    }}
-                                    className="w-full bg-transparent text-[9px] outline-none text-primary border-none p-0"
-                                  >
-                                    {services.filter(s => s.category === 'edge').length > 0 ? (
-                                      <>
-                                        <option value="Nenhum" className="bg-secondary-dark">Nenhum</option>
-                                        {services.filter(s => s.category === 'edge').map(s => (
-                                          <option key={s.id} value={s.name} className="bg-secondary-dark">{s.name}</option>
-                                        ))}
-                                      </>
-                                    ) : (
-                                      EDGE_TYPES.map(type => (
-                                        <option key={type} value={type} className="bg-secondary-dark">{type}</option>
-                                      ))
-                                    )}
-                                  </select>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Serviços da Peça</label>
-                          <div className="flex flex-wrap gap-2">
-                            {services.map(s => {
-                              const isSelected = part.services?.some(ps => ps.service_id === s.id);
-                              return (
-                                <button
-                                  key={s.id}
-                                  type="button"
-                                  onClick={() => {
-                                    const newParts = [...(editingModule.parts || [])];
-                                    const partServices = newParts[index].services || [];
-                                    if (isSelected) {
-                                      newParts[index].services = partServices.filter(ps => ps.service_id !== s.id);
-                                    } else {
-                                      newParts[index].services = [...partServices, { service_id: s.id, dimension: 'width' }];
-                                    }
-                                    setEditingModule({ ...editingModule, parts: newParts });
-                                  }}
-                                  className={`text-[9px] px-2 py-1 rounded border transition-all ${isSelected ? 'bg-primary/20 border-primary text-primary' : 'bg-secondary-dark border-border-dark text-slate-500 hover:border-slate-400'}`}
-                                >
-                                  {s.name}
-                                </button>
-                              );
-                            })}
-                            {services.length === 0 && <p className="text-[9px] text-slate-600 italic">Nenhum serviço cadastrado.</p>}
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Insumos da Peça</label>
-                          <div className="grid grid-cols-1 gap-3">
-                            {supplies.map(s => {
-                              const supplyConfig = part.supplies?.find(ps => ps.supply_id === s.id);
-                              const isSelected = !!supplyConfig;
-                              const supplyUnit = s.unit || 'm';
-                              const isLinear = supplyUnit === 'm';
-
-                              return (
-                                <div key={s.id} className="flex flex-col gap-2 p-2 bg-secondary-dark/50 rounded-lg border border-border-dark/50">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-[10px] font-bold ${isSelected ? 'text-primary' : 'text-slate-400'}`}>{s.name}</span>
-                                      <span className="text-[8px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">{supplyUnit}</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const newParts = [...(editingModule.parts || [])];
-                                        const partSupplies = newParts[index].supplies || [];
-                                        if (isSelected) {
-                                          newParts[index].supplies = partSupplies.filter(ps => ps.supply_id !== s.id);
-                                        } else {
-                                          newParts[index].supplies = [...partSupplies, { supply_id: s.id, sides: [], quantity_per_unit: isLinear ? undefined : 1 }];
-                                        }
-                                        setEditingModule({ ...editingModule, parts: newParts });
-                                      }}
-                                      className={`text-[9px] px-2 py-0.5 rounded border transition-all ${isSelected ? 'bg-primary text-white border-primary' : 'bg-background-dark border-border-dark text-slate-500 hover:border-slate-400'}`}
-                                    >
-                                      {isSelected ? 'Remover' : 'Adicionar'}
-                                    </button>
-                                  </div>
-
-                                  {isSelected && (
-                                    <div className="space-y-2">
-                                      <div className="flex gap-1.5">
-                                        {['top', 'bottom', 'left', 'right'].map(side => (
-                                          <button
-                                            key={side}
-                                            type="button"
-                                            onClick={() => {
-                                              const newParts = [...(editingModule.parts || [])];
-                                              const partSupplies = [...(newParts[index].supplies || [])];
-                                              const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
-                                              if (sIdx > -1) {
-                                                const currentSides = partSupplies[sIdx].sides || [];
-                                                if (currentSides.includes(side as any)) {
-                                                  partSupplies[sIdx].sides = currentSides.filter(cs => cs !== side);
-                                                } else {
-                                                  partSupplies[sIdx].sides = [...currentSides, side as any];
-                                                }
-                                                newParts[index].supplies = partSupplies;
-                                                setEditingModule({ ...editingModule, parts: newParts });
-                                              }
-                                            }}
-                                            className={`text-[8px] px-2 py-1 rounded border transition-all ${supplyConfig.sides?.includes(side as any) ? 'bg-primary/20 border-primary text-primary font-bold' : 'bg-background-dark border-border-dark text-slate-500'}`}
-                                          >
-                                            {side === 'top' ? 'Topo' : side === 'bottom' ? 'Base' : side === 'left' ? 'Esq.' : 'Dir.'}
-                                          </button>
-                                        ))}
-                                      </div>
-
-                                      {!isLinear && (
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-[8px] font-bold text-slate-500 uppercase whitespace-nowrap">Qtd por peça ({supplyUnit}):</label>
-                                          <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            value={supplyConfig.quantity_per_unit ?? 1}
-                                            onChange={e => {
-                                              const newParts = [...(editingModule.parts || [])];
-                                              const partSupplies = [...(newParts[index].supplies || [])];
-                                              const sIdx = partSupplies.findIndex(ps => ps.supply_id === s.id);
-                                              if (sIdx > -1) {
-                                                partSupplies[sIdx] = { ...partSupplies[sIdx], quantity_per_unit: parseFloat(e.target.value) || 0 };
-                                                newParts[index].supplies = partSupplies;
-                                                setEditingModule({ ...editingModule, parts: newParts });
-                                              }
-                                            }}
-                                            className="w-20 bg-background-dark border border-border-dark rounded px-2 py-1 text-[10px] outline-none focus:ring-1 focus:ring-primary"
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {supplies.length === 0 && <p className="text-[9px] text-slate-600 italic">Nenhum insumo cadastrado.</p>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {editingModule.parts?.length === 0 && (
-                      <p className="text-center py-4 text-slate-500 text-xs italic">Nenhuma peça configurada. Use L para Largura e P para Profundidade.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsModuleModalOpen(false)}
-                    className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-                  >
-                    Salvar Módulo
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {isServiceModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-secondary-dark border border-border-dark rounded-xl p-6 w-full max-w-md shadow-2xl"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-primary">{editingService.id ? 'Editar Serviço' : 'Novo Serviço'}</h3>
-                <button onClick={() => setIsServiceModalOpen(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
-                  <X size={20} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveService} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Serviço</label>
-                  <input
-                    required
-                    value={editingService.name}
-                    onChange={e => setEditingService({ ...editingService, name: e.target.value })}
-                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                    placeholder="Ex: Acabamento 45 Graus"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Categoria</label>
-                  <select
-                    value={editingService.category}
-                    onChange={e => setEditingService({ ...editingService, category: e.target.value as any })}
-                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                  >
-                    <option value="finish">Acabamento</option>
-                    <option value="edge">Borda</option>
-                    <option value="other">Outro</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço por Metro (R$/m)</label>
-                  <input
-                    required
-                    type="number"
-                    step="0.01"
-                    value={editingService.price}
-                    onChange={e => setEditingService({ ...editingService, price: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minutos por Metro (min/m)</label>
-                  <input
-                    type="number"
-                    value={editingService.minutes_per_meter || ''}
-                    onChange={e => setEditingService({ ...editingService, minutes_per_meter: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm"
-                    placeholder="Ex: 15"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descrição</label>
-                  <textarea
-                    value={editingService.description}
-                    onChange={e => setEditingService({ ...editingService, description: e.target.value })}
-                    className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm h-24 resize-none"
-                    placeholder="Opcional..."
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsServiceModalOpen(false)}
-                    className="flex-1 py-3 rounded-xl font-bold text-slate-400 hover:bg-white/5 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
-                  >
-                    Salvar Serviço
+                    Salvar Insumo
                   </button>
                 </div>
               </form>
@@ -1008,4 +735,3 @@ export default function SettingsView({ showToast }: { showToast: (m: string, t?:
     </div>
   );
 }
-

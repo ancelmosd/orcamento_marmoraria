@@ -717,94 +717,94 @@ export default function ModuleTemplatesView({ showToast }: ModuleTemplatesViewPr
             </div>
           </motion.div>
         ) : (
-          <motion.div className="space-y-3">
-            {templates.map(template => {
-              const stats = getTemplateStats(template);
-              return (
-                <motion.div
-                  key={template.id}
-                  layoutId={`template-${template.id}`}
-                  className="bg-secondary-dark p-4 rounded-xl border border-border-dark hover:border-primary/40 transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 group"
-                >
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="bg-primary/10 p-2.5 rounded-lg text-primary flex-shrink-0">
-                      <Box size={20} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-sm truncate">{template.name}</h3>
-                      <div className="flex items-center gap-2">
-                        <p className="text-slate-500 text-[10px] line-clamp-1">{template.description}</p>
-                        {stats.materialName && (
-                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-[8px] text-slate-400 font-bold uppercase tracking-wider">
-                            {stats.materialName}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-4 lg:gap-8">
-                    <div className="px-4 lg:border-l border-border-dark/50">
-                      <p className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">Medida Ref.</p>
-                      <p className="text-xs font-mono text-slate-300 whitespace-nowrap">{template.default_l || 1000} x {template.default_p || 600}</p>
-                    </div>
-                    <div className="hidden sm:block px-4 border-l border-border-dark/50">
-                      <p className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">Custo Pedra</p>
-                      <p className="text-xs font-mono text-emerald-400 whitespace-nowrap">R$ {stats.stoneCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div className="hidden sm:block px-4 border-l border-border-dark/50">
-                      <p className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">Serv./Insumos</p>
-                      <p className="text-xs font-mono text-blue-400 whitespace-nowrap">R$ {stats.extraCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div className="px-4 border-l border-border-dark/50">
-                      <p className="text-[10px] text-primary uppercase font-black tracking-tighter">Valor Total</p>
-                      <p className="text-sm font-black text-primary whitespace-nowrap">R$ {(stats.stoneCost + stats.extraCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                      <p className="text-[8px] text-slate-600 font-normal">*Mat. ref.: {stats.materialName}</p>
-                    </div>
-
-                    <div className="flex items-center gap-1 pl-4 border-l border-border-dark/50">
-                      <button
-                        onClick={() => {
-                          setPreviewTemplate(template);
-                          setIsPreviewing(true);
-                        }}
-                        className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-all"
-                        title="Visualizar 3D"
-                      >
-                        <Cuboid size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleClone(template)}
-                        className="p-2 text-emerald-400 hover:bg-emerald-400/10 rounded-lg transition-all"
-                        title="Clonar Template"
-                      >
-                        <Copy size={18} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCurrentTemplate(template);
-                          setTestL(template.default_l || 800);
-                          setTestP(template.default_p || 600);
-                          setIsEditing(true);
-                        }}
-                        className="p-2 text-slate-400 hover:bg-white/5 rounded-lg transition-all"
-                        title="Editar"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => template.id && handleDelete(template.id)}
-                        className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                        title="Excluir"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
+          <div className="bg-secondary-dark rounded-2xl border border-border-dark overflow-hidden shadow-xl">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-white/5 border-b border-border-dark">
+                <tr>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Nome do Módulo</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Medida Ref.</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Custo Pedra</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Serv./Insumos</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Total</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-dark">
+                {templates.map(template => {
+                  const stats = getTemplateStats(template);
+                  return (
+                    <tr key={template.id} className="hover:bg-white/5 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-primary/10 p-2 rounded-lg text-primary">
+                            <Box size={16} />
+                          </div>
+                          <div>
+                            <p className="font-black text-white text-sm">{template.name}</p>
+                            <p className="text-[10px] text-slate-500 line-clamp-1">{template.description}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-[10px] font-mono text-slate-400 bg-background-dark px-1.5 py-0.5 rounded border border-white/5">
+                          {template.default_l || 1000}x{template.default_p || 600}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-xs font-bold text-emerald-400/80">R${stats.stoneCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-xs font-bold text-blue-400/80">R${stats.extraCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="font-black text-primary">R${(stats.stoneCost + stats.extraCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-0.5">
+                          <button
+                            onClick={() => {
+                              setPreviewTemplate(template);
+                              setIsPreviewing(true);
+                            }}
+                            className="p-1.5 hover:bg-primary/10 text-slate-500 hover:text-primary rounded-lg transition-all"
+                            title="Visualizar 3D"
+                          >
+                            <Cuboid size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleClone(template)}
+                            className="p-1.5 hover:bg-emerald-400/10 text-slate-500 hover:text-emerald-400 rounded-lg transition-all"
+                            title="Clonar"
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCurrentTemplate(template);
+                              setTestL(template.default_l || 800);
+                              setTestP(template.default_p || 600);
+                              setIsEditing(true);
+                            }}
+                            className="p-1.5 hover:bg-white/10 text-slate-500 hover:text-white rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => template.id && handleDelete(template.id)}
+                            className="p-1.5 hover:bg-red-500/10 text-slate-500 hover:text-red-500 rounded-lg transition-all"
+                            title="Excluir"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </AnimatePresence>
 
