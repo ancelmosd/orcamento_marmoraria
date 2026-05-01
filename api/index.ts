@@ -701,6 +701,32 @@ app.delete("/api/transactions/:id", async (req, res) => {
   }
 });
 
+app.get("/api/settings/:key", async (req, res) => {
+  try {
+    const { key } = req.params;
+    const setting = await prisma.system_settings.findUnique({ where: { key } });
+    res.json(setting ? JSON.parse(setting.value) : {});
+  } catch (e) {
+    res.status(500).json({});
+  }
+});
+
+app.post("/api/settings/:key", async (req, res) => {
+  try {
+    const { key } = req.params;
+    const value = JSON.stringify(req.body);
+    await prisma.system_settings.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value }
+    });
+    res.json({ success: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Erro ao salvar configurações' });
+  }
+});
+
 app.get("/api/backup", async (req, res) => {
   try {
     const [
