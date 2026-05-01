@@ -460,7 +460,7 @@ export default function QuotesView({
                   <div className="col-span-1 md:col-span-2">
                     <label className="md:hidden text-[10px] font-bold text-slate-500 uppercase mb-1 block">Subtotal</label>
                     <div className="text-xs font-black text-right pr-2 text-primary">
-                      R$ {calculateSubtotal(item).toLocaleString()}
+                      R$ {calculateSubtotal(item).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
                   <div className="col-span-1 md:col-span-1 flex justify-center">
@@ -547,7 +547,7 @@ export default function QuotesView({
                       <div className="col-span-1 md:col-span-1">
                         <label className="md:hidden text-[10px] font-bold text-slate-500 uppercase mb-1 block">Subtotal</label>
                         <div className="text-xs font-black text-right text-primary">
-                          {calculateServiceSubtotal(item).toLocaleString()}
+                          {calculateServiceSubtotal(item).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       </div>
                       <div className="col-span-1 md:col-span-1 flex justify-center">
@@ -581,15 +581,15 @@ export default function QuotesView({
           <div className="bg-secondary-dark p-6 rounded-xl border border-border-dark sticky top-24 space-y-6">
             <h3 className="text-xl font-bold flex items-center gap-2"><Calculator className="w-5 h-5 text-primary" /> Resumo</h3>
             <div className="space-y-3">
-              <SummaryItem label="Total Materiais" value={`R$ ${totalMaterials.toLocaleString()}`} />
-              <SummaryItem label="Total Serviços" value={`R$ ${totalServices.toLocaleString()}`} />
+              <SummaryItem label="Total Materiais" value={`R$ ${totalMaterials.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+              <SummaryItem label="Total Serviços" value={`R$ ${totalServices.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
               <SummaryItem label="Área Total" value={`${totalArea.toFixed(2)} m²`} />
               <SummaryItem label="Tempo Estimado" value={`${totalHours}h ${remainingMinutes}min`} />
             </div>
             <div className="pt-6 border-t border-border-dark">
               <div className="bg-primary/10 p-4 rounded-xl border border-primary/20">
                 <p className="text-xs font-bold text-primary uppercase mb-1">Total Estimado</p>
-                <p className="text-3xl font-black text-primary">R$ {totalValue.toLocaleString()}</p>
+                <p className="text-3xl font-black text-primary">R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

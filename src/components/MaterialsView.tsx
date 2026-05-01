@@ -430,12 +430,12 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                     <span className="font-bold text-sm text-primary">{m.name}</span>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-300">
-                    R$ {(m.price || 0).toFixed(2)}
+                    R$ {(m.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <span className={`font-black text-sm ${(m.quantity || 0) < 5 ? 'text-orange-500' : 'text-white'}`}>
-                        {(m.quantity || 0).toFixed(2)} m²
+                        {(m.quantity || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
                       </span>
                       <button onClick={() => setStockEntryMaterial(m)} className="p-1.5 bg-primary/10 text-primary rounded hover:bg-primary hover:text-white transition-all opacity-0 group-hover:opacity-100">
                         <Plus size={14} />
@@ -495,7 +495,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                     <span className="bg-white/5 border border-white/10 px-2 py-1 rounded text-xs font-bold">{r.quantity}</span>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-400">
-                    {((r.length * r.width) / 1000000).toFixed(3)} m²
+                    {((r.length * r.width) / 1000000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-xs text-slate-400">
@@ -525,7 +525,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                 </div>
                 <div>
                   <span className="text-slate-500">Área Total:</span>
-                  <span className="ml-2 font-bold text-primary">{remnants.reduce((acc, r) => acc + (((r.length || 0) * (r.width || 0) * (r.quantity || 0)) / 1000000), 0).toFixed(2)} m²</span>
+                  <span className="ml-2 font-bold text-primary">{remnants.reduce((acc, r) => acc + (((r.length || 0) * (r.width || 0) * (r.quantity || 0)) / 1000000), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</span>
                 </div>
               </div>
             </div>
@@ -561,7 +561,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-300">
-                    R$ {(s.price_per_meter || 0).toFixed(2)}
+                    R$ {(s.price_per_meter || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-400">
                     {s.minutes_per_meter} min
@@ -621,7 +621,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                 <div className="bg-white/5 p-4 rounded-xl flex justify-between items-center border border-white/5">
                   <span className="text-sm text-slate-400">Novo Estoque Estimado:</span>
                   <span className="font-black text-lg text-white">
-                    {(stockEntryMaterial.quantity + (parseFloat(stockAmount) || 0)).toFixed(2)} m²
+                    {(stockEntryMaterial.quantity + (parseFloat(stockAmount) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
                   </span>
                 </div>
 

@@ -461,7 +461,7 @@ export default function ModuleTemplatesView({ showToast }: ModuleTemplatesViewPr
                             <div>
                               <h5 className="text-sm font-bold">{part.name}</h5>
                               <p className="text-[10px] text-emerald-400 font-mono">
-                                Est: R$ {calculatePartCost(part).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                Est: R$ {calculatePartCost(part).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </p>
                             </div>
                           </div>
@@ -751,13 +751,13 @@ export default function ModuleTemplatesView({ showToast }: ModuleTemplatesViewPr
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-xs font-bold text-emerald-400/80">R${stats.stoneCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-xs font-bold text-emerald-400/80">R${stats.stoneCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-xs font-bold text-blue-400/80">R${stats.extraCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-xs font-bold text-blue-400/80">R${stats.extraCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="font-black text-primary">R${(stats.stoneCost + stats.extraCost).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <span className="font-black text-primary">R${(stats.stoneCost + stats.extraCost).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-0.5">

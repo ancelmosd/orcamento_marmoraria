@@ -680,15 +680,15 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                     </div>
                     <div className="bg-background-dark/30 border border-border-dark/50 p-2 rounded-xl">
                       <p className="text-slate-500 mb-1">Pedra</p>
-                      <p className="text-emerald-400 font-mono text-[10px]">R$ {currentModuleStats.materialCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-emerald-400 font-mono text-[10px]">R$ {currentModuleStats.materialCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
                     <div className="bg-background-dark/30 border border-border-dark/50 p-2 rounded-xl">
                       <p className="text-slate-500 mb-1">Serviços</p>
-                      <p className="text-blue-400 font-mono text-[10px]">R$ {currentModuleStats.servicesCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-blue-400 font-mono text-[10px]">R$ {currentModuleStats.servicesCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
                     <div className="bg-primary/10 border border-primary/30 p-2 rounded-xl">
                       <p className="text-primary mb-1">Total</p>
-                      <p className="text-white font-black font-mono text-[10px]">R$ {currentModuleStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p className="text-white font-black font-mono text-[10px]">R$ {currentModuleStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
                   </div>
                 )}
@@ -896,7 +896,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                         <div className="md:col-span-3 space-y-1 flex flex-col justify-end">
                           <div className="bg-primary/5 p-2 rounded-lg border border-primary/20">
                             <span className="text-[10px] font-black text-primary uppercase block">Total Item</span>
-                            <p className="text-sm font-black text-white">R$ {((prod.price || 0) * (prod.quantity || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            <p className="text-sm font-black text-white">R$ {((prod.price || 0) * (prod.quantity || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                           </div>
                         </div>
                       </div>
@@ -945,11 +945,11 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
             <div className="space-y-3 pt-2">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Material</span>
-                <span className="font-bold">R$ {quickStats.totalMaterial.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="font-bold">R$ {quickStats.totalMaterial.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Serviços</span>
-                <span className="font-bold">R$ {quickStats.totalServices.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                <span className="font-bold">R$ {quickStats.totalServices.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               
               <div className="pt-2 border-t border-border-dark space-y-3">
@@ -996,31 +996,31 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
               <div className="pt-2 border-t border-border-dark space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Área Total</span>
-                  <span className="font-bold text-slate-300">{quickStats.totalArea.toFixed(2)} m²</span>
+                  <span className="font-bold text-slate-300">{quickStats.totalArea.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</span>
                 </div>
                 {quickStats.installationCost > 0 && (
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500">Montagem</span>
-                    <span className="font-bold text-slate-300">R$ {quickStats.installationCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-bold text-slate-300">R$ {quickStats.installationCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {quickStats.deliveryFee > 0 && (
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-500">Entrega</span>
-                    <span className="font-bold text-slate-300">R$ {quickStats.deliveryFee.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-bold text-slate-300">R$ {quickStats.deliveryFee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
                 {quickStats.discountAmount > 0 && (
                   <div className="flex justify-between text-xs">
                     <span className="text-red-400">Desconto</span>
-                    <span className="font-bold text-red-400">- R$ {quickStats.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="font-bold text-red-400">- R$ {quickStats.discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
               </div>
 
               <div className="pt-4 border-t border-border-dark">
                 <p className="text-[10px] font-bold text-primary uppercase mb-1">Total Geral</p>
-                <p className="text-4xl font-black text-primary">R$ {quickStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <p className="text-4xl font-black text-primary">R$ {quickStats.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
             <button 

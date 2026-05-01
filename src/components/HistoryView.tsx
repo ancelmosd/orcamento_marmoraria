@@ -239,7 +239,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     {quote.created_at ? new Date(quote.created_at).toLocaleDateString('pt-BR') : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm font-bold text-primary">
-                    R$ {(quote.total_value || 0).toLocaleString()}
+                    R$ {(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
@@ -288,7 +288,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           const phone = (quote.clients?.phone || '').replace(/\D/g, '');
-                          const message = encodeURIComponent(`Olá ${quote.client_name || ''}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${quote.project_name || ''}\n*Valor:* R$ ${(quote.total_value || 0).toLocaleString()}\n*Status:* ${quote.status || ''}\n\nFicamos à disposição!`);
+                          const message = encodeURIComponent(`Olá ${quote.client_name || ''}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${quote.project_name || ''}\n*Valor:* R$ ${(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n*Status:* ${quote.status || ''}\n\nFicamos à disposição!`);
                           window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
                         }}
                         className="p-1.5 bg-white/5 rounded-md hover:bg-emerald-500 hover:text-white transition-colors text-emerald-400"

@@ -223,7 +223,7 @@ export function FinancialView({ showToast }: { showToast: (m: string, t?: 'succe
                   </div>
                   
                   <div className={`col-span-3 text-right font-black text-sm tracking-tight ${t.type === 'income' ? 'text-green-500' : 'text-red-500'}`}>
-                    {t.type === 'income' ? '+' : '-'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {t.type === 'income' ? '+' : '-'} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                   
                   <div className="col-span-1 flex justify-center">
@@ -259,7 +259,7 @@ export function FinancialView({ showToast }: { showToast: (m: string, t?: 'succe
               <div className="bg-[#11141D] rounded-2xl p-5 border border-[#2A303C]">
                 <p className="text-[10px] text-green-500 font-extrabold tracking-widest uppercase mb-1">Entradas</p>
                 <p className="text-2xl font-black text-green-500 italic">
-                  R$ {summary.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {summary.income.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
 
@@ -267,7 +267,7 @@ export function FinancialView({ showToast }: { showToast: (m: string, t?: 'succe
               <div className="bg-[#11141D] rounded-2xl p-5 border border-[#2A303C]">
                 <p className="text-[10px] text-red-500 font-extrabold tracking-widest uppercase mb-1">Saídas</p>
                 <p className="text-2xl font-black text-red-500 italic">
-                  R$ {summary.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {summary.expense.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
 
@@ -276,7 +276,7 @@ export function FinancialView({ showToast }: { showToast: (m: string, t?: 'succe
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFB01A]/5 rounded-full blur-2xl -mr-10 -mt-10" />
                 <p className="text-[10px] text-slate-500 font-extrabold tracking-widest uppercase mb-1 relative z-10">Saldo em Caixa</p>
                 <p className="text-3xl font-black text-[#FFB01A] italic relative z-10">
-                  R$ {summary.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  R$ {summary.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
             </div>

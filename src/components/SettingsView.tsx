@@ -352,7 +352,7 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
                               {(s.minutes_per_meter || 0)} min
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <span className="font-black text-primary">R$ {(s.price_per_meter || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                              <span className="font-black text-primary">R$ {(s.price_per_meter || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </td>
                             <td className="px-6 py-4 text-right">
                               <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

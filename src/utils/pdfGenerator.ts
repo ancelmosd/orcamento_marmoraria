@@ -185,7 +185,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
                 description,
                 'unid.',
                 `R$ ${unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                modQty,
+                modQty.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 `R$ ${subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               ];
             }),
@@ -202,7 +202,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
                 description,
                 prod.unit || 'un',
                 `R$ ${unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                qty,
+                qty.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               ];
             })
@@ -284,7 +284,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
           item.description || 'Peça em Mármore/Granito',
           'un',
           `R$ ${(item.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-          (item.quantity || 1).toString(),
+          (item.quantity || 1).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
           `R$ ${((item.subtotal_m2 || 0) * (item.unit_price || 0) || (item.quantity * item.unit_price)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
         ]),
         ...(quote.services || []).map((service: any) => [
@@ -378,25 +378,25 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
     doc.setTextColor(100, 100, 100);
 
     doc.text('Subtotal:', pageWidth - 80, currentY);
-    doc.text(`R$ ${baseSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
+    doc.text(`R$ ${baseSubtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
 
     if (installationValue > 0) {
       currentY += 4;
       doc.text('Taxa de Montagem:', pageWidth - 80, currentY);
-      doc.text(`R$ ${installationValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
+      doc.text(`R$ ${installationValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
     }
 
     if (deliveryValue > 0) {
       currentY += 4;
       doc.text('Taxa de Entrega:', pageWidth - 80, currentY);
-      doc.text(`R$ ${deliveryValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
+      doc.text(`R$ ${deliveryValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
     }
 
     if (discountValue > 0) {
       currentY += 4;
       doc.setTextColor(200, 0, 0);
       doc.text(`${discountLabel}:`, pageWidth - 80, currentY);
-      doc.text(`- R$ ${discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
+      doc.text(`- R$ ${discountValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
     }
 
     currentY += 6;
@@ -404,7 +404,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.text('Total Geral:', pageWidth - 80, currentY);
-    doc.text(`R$ ${(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
+    doc.text(`R$ ${(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - 20, currentY, { align: 'right' });
 
     // -- CONDIÇÕES E PAGAMENTO --
     currentY += 10;

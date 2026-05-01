@@ -474,19 +474,19 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
                 <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl">
                   <p className="text-xs font-bold text-emerald-400 uppercase mb-1">Recebido</p>
                   <p className="text-xl font-black text-emerald-500">
-                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pago').reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pago').reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
                   <p className="text-xs font-bold text-blue-400 uppercase mb-1">A receber</p>
                   <p className="text-xl font-black text-blue-500">
-                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pendente' && p.due_date && new Date(p.due_date) >= new Date()).reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pendente' && p.due_date && new Date(p.due_date) >= new Date()).reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
                   <p className="text-xs font-bold text-red-400 uppercase mb-1">Em atraso</p>
                   <p className="text-xl font-black text-red-500">
-                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pendente' && p.due_date && new Date(p.due_date) < new Date()).reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {(Array.isArray(payments) ? payments : []).filter(p => p.status === 'pendente' && p.due_date && new Date(p.due_date) < new Date()).reduce((acc, p) => acc + (p.amount || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>
@@ -516,7 +516,7 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
                           <td className="px-4 py-3 text-slate-400">
                             {p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '-'}
                           </td>
-                          <td className="px-4 py-3 font-bold text-primary">R$ {p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-3 font-bold text-primary">R$ {p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${p.status === 'pago' ? 'bg-emerald-500/10 text-emerald-400' :
                               (new Date(p.due_date) < new Date() ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400')
@@ -591,7 +591,7 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
                           </button>
                         </div>
                         <div className="text-right">
-                          <p className="font-black text-primary">R$ {order.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          <p className="font-black text-primary">R$ {order.total_value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                           <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${order.status === 'Aprovado' ? 'bg-emerald-500/10 text-emerald-400' :
                             order.status === 'Enviado' ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-500/10 text-slate-400'
                             }`}>{order.status}</span>
