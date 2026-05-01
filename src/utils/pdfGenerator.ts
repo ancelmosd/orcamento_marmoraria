@@ -125,12 +125,16 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
       doc.setLineHeightFactor(1.1); // 1.15 -> 1.1
       const splitInfo = doc.splitTextToSize(documentSettings.generalInfo, pageWidth - 45);
       doc.text(splitInfo, 25, currentY);
-      currentY += (splitInfo.length * 3.5); // 4 -> 3.5
+      
+      // Calcula altura do texto (fontSize 7.5pt * lineHeight 1.1)
+      const textHeight = (splitInfo.length * (7.5 * 1.1)) / 2.83465;
+      currentY += textHeight + 2; // Gap de 2mm após o texto
     }
 
     // -- CONTEÚDO DINÂMICO --
     if (type === 'comercial') {
-      currentY += 3; // Reduzido de 5 para 3
+      // Se já adicionamos o gap acima, não precisamos de muito mais aqui
+      if (!documentSettings?.generalInfo) currentY += 3;
       // Bloco unificado: título + cabeçalho da tabela
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(20, currentY, pageWidth - 40, 14, 'F');
@@ -271,7 +275,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
       }
     } else {
       // -- DETALHAMENTO TÉCNICO (ITEMS E SERVIÇOS) --
-      currentY += 6; // Reduzido de 12 para 6
+      if (!documentSettings?.generalInfo) currentY += 6;
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(20, currentY, pageWidth - 40, 8, 'F');
       doc.setFont('helvetica', 'bold');
