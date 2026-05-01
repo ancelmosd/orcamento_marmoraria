@@ -42,6 +42,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
+  const [deliveryDate, setDeliveryDate] = useState('');
   const [complementaryProducts, setComplementaryProducts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
         .then(data => {
           setSelectedClientId(data.client_id);
           setProjectName(data.project_name || '');
+          setDeliveryDate(data.delivery_date || '');
           if (data.items && data.items.length > 0) {
             setSelectedMaterialId(data.items[0].material_id);
           }
@@ -529,6 +531,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
           project_name: projectName || "Orçamento Rápido",
           total_value: Number(quickStats.totalValue),
           discount: Number(quickStats.discountAmount),
+          delivery_date: deliveryDate,
           items,
           services: quoteServices,
           origin: 'quick',
@@ -963,15 +966,26 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                     className="w-full bg-background-dark/50 border border-border-dark rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-primary text-sm font-mono"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Taxa de Entrega (R$)</label>
-                  <input 
-                    type="number" 
-                    value={deliveryFee || ''} 
-                    onChange={e => setDeliveryFee(Number(e.target.value))}
-                    placeholder="0,00"
-                    className="w-full bg-background-dark/50 border border-border-dark rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-primary text-sm font-mono"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Taxa de Entrega (R$)</label>
+                    <input 
+                      type="number" 
+                      value={deliveryFee || ''} 
+                      onChange={e => setDeliveryFee(Number(e.target.value))}
+                      placeholder="0,00"
+                      className="w-full bg-background-dark/50 border border-border-dark rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-primary text-sm font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Data de Entrega</label>
+                    <input 
+                      type="date" 
+                      value={deliveryDate} 
+                      onChange={e => setDeliveryDate(e.target.value)}
+                      className="w-full bg-background-dark/50 border border-border-dark rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-primary text-sm font-mono text-white"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Desconto</label>

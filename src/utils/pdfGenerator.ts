@@ -430,7 +430,12 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
     doc.setFont('helvetica', 'bold');
     doc.text('Prazo de execução:', 20, currentY);
     doc.setFont('helvetica', 'normal');
-    doc.text(payment.executionDeadline || 'A combinar', 58, currentY);
+    
+    const deadlineText = payment.useDynamicDeadline 
+      ? `Até ${quote.delivery_date ? new Date(quote.delivery_date + 'T12:00:00').toLocaleDateString('pt-BR') : 'a combinar'} se sinal de 50% for pago em até dois dias apartir da data do orçamento`
+      : (payment.executionDeadline || 'A combinar');
+      
+    doc.text(deadlineText, 58, currentY);
 
     currentY += 4;
     doc.setFont('helvetica', 'bold');

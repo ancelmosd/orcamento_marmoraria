@@ -57,7 +57,8 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
     bankAccount: '',
     showLogo: true,
     showBankData: false,
-    showSignature: true
+    showSignature: true,
+    useDynamicDeadline: false
   });
 
   useEffect(() => {
@@ -626,13 +627,30 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prazo de Execução</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prazo de Execução</label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox"
+                              checked={paymentSettings.useDynamicDeadline}
+                              onChange={e => setPaymentSettings({ ...paymentSettings, useDynamicDeadline: e.target.checked })}
+                              className="w-4 h-4 rounded border-border-dark bg-background-dark text-primary focus:ring-primary/50"
+                            />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Usar Data de Entrega</span>
+                          </label>
+                        </div>
                         <input
                           value={paymentSettings.executionDeadline}
                           onChange={e => setPaymentSettings({ ...paymentSettings, executionDeadline: e.target.value })}
-                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                          disabled={paymentSettings.useDynamicDeadline}
+                          className={`w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none ${paymentSettings.useDynamicDeadline ? 'opacity-50 cursor-not-allowed' : ''}`}
                           placeholder="Ex: 25 dias após aprovação"
                         />
+                        {paymentSettings.useDynamicDeadline && (
+                          <p className="text-[10px] text-primary mt-1 font-bold">
+                            * O PDF exibirá: "Até [DATA DE ENTREGA] se sinal de 50% for pago em até dois dias apartir da data do orçamento"
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Condições</label>
