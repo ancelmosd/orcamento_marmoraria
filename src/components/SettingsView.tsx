@@ -5,7 +5,7 @@ import {
   Construction, Database, Download, Upload,
   Box, Bolt, Package, FileText, Trash2,
   User, Users, Building2, Bell, Lock, FileCode,
-  Shield, Mail, Phone, MapPin, Briefcase, ChevronRight
+  Shield, Mail, Phone, MapPin, Briefcase, ChevronRight, Camera
 } from 'lucide-react';
 import { ModuleTemplate, Service, Supply } from '../types';
 import ServicesView from './ServicesView';
@@ -36,14 +36,53 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
     cnpj: '',
     email: '',
     phone: '',
-    address: ''
+    address: '',
+    logo: ''
+  });
+
+  // States for Document Settings
+  const [documentSettings, setDocumentSettings] = useState({
+    generalInfo: ''
+  });
+
+  // States for Payment Settings
+  const [paymentSettings, setPaymentSettings] = useState({
+    executionDeadline: '25 dias após aprovação',
+    paymentMethods: 'Boleto, Transferência Bancária, Dinheiro, Cartão de Crédito, PIX',
+    conditions: 'A vista, Sinal',
+    observations: 'Orçamento válido por 10 dias úteis.',
+    pixKey: '',
+    bankName: '',
+    bankAgency: '',
+    bankAccount: '',
+    showLogo: true,
+    showBankData: false,
+    showSignature: true
   });
 
   useEffect(() => {
     fetchTemplates();
     fetchSupplies();
     fetchCompanyInfo();
+    fetchDocumentSettings();
+    fetchPaymentSettings();
   }, []);
+
+  const fetchDocumentSettings = () => {
+    fetch('/api/settings/document_settings')
+      .then(r => r.json())
+      .then(data => {
+        if (Object.keys(data).length > 0) setDocumentSettings(data);
+      });
+  };
+
+  const fetchPaymentSettings = () => {
+    fetch('/api/settings/payment_settings')
+      .then(r => r.json())
+      .then(data => {
+        if (Object.keys(data).length > 0) setPaymentSettings(prev => ({ ...prev, ...data }));
+      });
+  };
 
   const fetchCompanyInfo = () => {
     fetch('/api/settings/company')
@@ -350,55 +389,97 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
                   <h3 className="text-2xl font-black text-white flex items-center gap-3">
                     <Building2 className="text-primary" /> Informações da Empresa
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome Fantasia</label>
-                        <input 
-                          value={companyInfo.name}
-                          onChange={e => setCompanyInfo({...companyInfo, name: e.target.value})}
-                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
-                          placeholder="Marmoraria Exemplo" 
-                        />
+                  <div className="flex flex-col lg:flex-row gap-8">
+                    <div className="flex flex-col items-center gap-4">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Logo da Empresa</label>
+                      <div className="relative group">
+                        <div className="w-40 h-40 rounded-2xl bg-background-dark border-2 border-dashed border-border-dark flex items-center justify-center overflow-hidden transition-all group-hover:border-primary/50">
+                          {companyInfo.logo ? (
+                            <img src={companyInfo.logo} alt="Logo" className="w-full h-full object-contain p-2" />
+                          ) : (
+                            <div className="flex flex-col items-center gap-2 text-slate-600">
+                              <Camera size={32} />
+                              <span className="text-[10px] font-bold uppercase tracking-tight">Upload</span>
+                            </div>
+                          )}
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setCompanyInfo({ ...companyInfo, logo: reader.result as string });
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                          />
+                        </div>
+                        {companyInfo.logo && (
+                          <button 
+                            onClick={() => setCompanyInfo({ ...companyInfo, logo: '' })}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1.5 rounded-full shadow-lg hover:scale-110 transition-all"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CNPJ</label>
-                        <input 
-                          value={companyInfo.cnpj}
-                          onChange={e => setCompanyInfo({...companyInfo, cnpj: e.target.value})}
-                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
-                          placeholder="00.000.000/0001-00" 
-                        />
-                      </div>
+                      <p className="text-[10px] text-slate-500 italic text-center max-w-[160px]">PNG ou JPG (transparente recomendado)</p>
                     </div>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">E-mail Comercial</label>
+
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nome Fantasia</label>
+                          <input 
+                            value={companyInfo.name}
+                            onChange={e => setCompanyInfo({...companyInfo, name: e.target.value})}
+                            className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                            placeholder="Marmoraria Exemplo" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CNPJ</label>
+                          <input 
+                            value={companyInfo.cnpj}
+                            onChange={e => setCompanyInfo({...companyInfo, cnpj: e.target.value})}
+                            className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                            placeholder="00.000.000/0001-00" 
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">E-mail Comercial</label>
+                          <input 
+                            value={companyInfo.email}
+                            onChange={e => setCompanyInfo({...companyInfo, email: e.target.value})}
+                            className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                            placeholder="contato@empresa.com" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone / WhatsApp</label>
+                          <input 
+                            value={companyInfo.phone}
+                            onChange={e => setCompanyInfo({...companyInfo, phone: e.target.value})}
+                            className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
+                            placeholder="(00) 00000-0000" 
+                          />
+                        </div>
+                      </div>
+                      <div className="md:col-span-2 space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Endereço Completo</label>
                         <input 
-                          value={companyInfo.email}
-                          onChange={e => setCompanyInfo({...companyInfo, email: e.target.value})}
+                          value={companyInfo.address}
+                          onChange={e => setCompanyInfo({...companyInfo, address: e.target.value})}
                           className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
-                          placeholder="contato@empresa.com" 
+                          placeholder="Rua Exemplo, 123 - Centro" 
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Telefone / WhatsApp</label>
-                        <input 
-                          value={companyInfo.phone}
-                          onChange={e => setCompanyInfo({...companyInfo, phone: e.target.value})}
-                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
-                          placeholder="(00) 00000-0000" 
-                        />
-                      </div>
-                    </div>
-                    <div className="md:col-span-2 space-y-2">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Endereço Completo</label>
-                      <input 
-                        value={companyInfo.address}
-                        onChange={e => setCompanyInfo({...companyInfo, address: e.target.value})}
-                        className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none" 
-                        placeholder="Rua Exemplo, 123 - Centro" 
-                      />
                     </div>
                   </div>
                   <button 
@@ -500,20 +581,188 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
                     <h3 className="text-2xl font-black text-white flex items-center gap-3">
                       <FileCode className="text-primary" /> Modelos de Documentos
                     </h3>
-                    <p className="text-sm text-slate-400">Edite as cláusulas e formatos dos documentos gerados.</p>
+                    <p className="text-sm text-slate-400">Configure as informações que aparecem em todos os documentos gerados.</p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {['Contrato de Prestação de Serviço', 'Termo de Garantia', 'Recibo de Pagamento', 'Ordem de Serviço'].map((doc, i) => (
-                      <div key={i} className="p-6 bg-background-dark rounded-2xl border border-border-dark flex items-center justify-between hover:border-primary/50 transition-all cursor-pointer group shadow-lg">
-                        <div className="flex items-center gap-4">
-                          <div className="p-3 bg-primary/10 text-primary rounded-xl group-hover:bg-primary group-hover:text-white transition-all">
-                            <FileText size={24} />
-                          </div>
-                          <span className="font-black text-sm">{doc}</span>
-                        </div>
-                        <ChevronRight size={20} className="text-slate-700 group-hover:text-primary transition-all" />
+                  
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Informações Gerais (PDF)</label>
+                      <textarea 
+                        value={documentSettings.generalInfo}
+                        onChange={e => setDocumentSettings({ ...documentSettings, generalInfo: e.target.value })}
+                        rows={6}
+                        className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none resize-none" 
+                        placeholder="Digite aqui as observações gerais, formas de pagamento, prazos de entrega, etc. Estas informações aparecerão no cabeçalho dos documentos." 
+                      />
+                      <p className="text-[10px] text-slate-500 italic">Estas informações serão exibidas em um bloco com fundo cinza logo abaixo dos dados do cliente no PDF.</p>
+                    </div>
+
+                    <button 
+                      onClick={async () => {
+                        const res = await fetch('/api/settings/document_settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(documentSettings)
+                        });
+                        if (res.ok) {
+                          showToast("Configurações de documentos salvas!");
+                        } else {
+                          showToast("Erro ao salvar configurações.", "error");
+                        }
+                      }}
+                      className="bg-primary text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all flex items-center gap-2"
+                    >
+                      <Save size={18} /> Salvar Alterações
+                    </button>
+                  </div>
+
+                  <div className="pt-8 border-t border-white/5 space-y-6">
+                    <div className="space-y-1">
+                      <h4 className="text-lg font-black text-white flex items-center gap-2">
+                        <Briefcase size={18} className="text-primary" /> Configurações de Pagamento
+                      </h4>
+                      <p className="text-sm text-slate-400">Defina as condições que aparecem na seção "Condições e Pagamento" do PDF.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prazo de Execução</label>
+                        <input
+                          value={paymentSettings.executionDeadline}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, executionDeadline: e.target.value })}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                          placeholder="Ex: 25 dias após aprovação"
+                        />
                       </div>
-                    ))}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Condições</label>
+                        <input
+                          value={paymentSettings.conditions}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, conditions: e.target.value })}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                          placeholder="Ex: A vista, 50% sinal + 50% na entrega"
+                        />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Formas de Pagamento</label>
+                        <input
+                          value={paymentSettings.paymentMethods}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, paymentMethods: e.target.value })}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                          placeholder="Ex: Boleto, PIX, Cartão de Crédito"
+                        />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2 pt-4 border-t border-white/5">
+                        <h5 className="text-[10px] font-black text-primary uppercase tracking-widest">Dados para Pagamento</h5>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Chave PIX</label>
+                        <input
+                          value={paymentSettings.pixKey}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, pixKey: e.target.value })}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                          placeholder="CNPJ, E-mail, Celular ou Chave Aleatória"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Banco</label>
+                        <input
+                          value={paymentSettings.bankName}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, bankName: e.target.value })}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                          placeholder="Ex: Banco do Brasil, Itaú..."
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Agência</label>
+                        <input
+                          value={paymentSettings.bankAgency}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, bankAgency: e.target.value })}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Conta</label>
+                        <input
+                          value={paymentSettings.bankAccount}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, bankAccount: e.target.value })}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2 pt-4 border-t border-white/5">
+                        <h5 className="text-[10px] font-black text-primary uppercase tracking-widest">Visualização no PDF</h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                          <button
+                            onClick={() => setPaymentSettings({ ...paymentSettings, showLogo: !paymentSettings.showLogo })}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${paymentSettings.showLogo ? 'bg-primary/20 border-primary text-primary' : 'bg-background-dark border-border-dark text-slate-500'}`}
+                          >
+                            Exibir Logo: {paymentSettings.showLogo ? 'SIM' : 'NÃO'}
+                          </button>
+                          <button
+                            onClick={() => setPaymentSettings({ ...paymentSettings, showBankData: !paymentSettings.showBankData })}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${paymentSettings.showBankData ? 'bg-primary/20 border-primary text-primary' : 'bg-background-dark border-border-dark text-slate-500'}`}
+                          >
+                            Dados Bancários: {paymentSettings.showBankData ? 'SIM' : 'NÃO'}
+                          </button>
+                          <button
+                            onClick={() => setPaymentSettings({ ...paymentSettings, showSignature: !paymentSettings.showSignature })}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${paymentSettings.showSignature ? 'bg-primary/20 border-primary text-primary' : 'bg-background-dark border-border-dark text-slate-500'}`}
+                          >
+                            Campo Assinatura: {paymentSettings.showSignature ? 'SIM' : 'NÃO'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2 pt-4">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Observações</label>
+                        <textarea
+                          value={paymentSettings.observations}
+                          onChange={e => setPaymentSettings({ ...paymentSettings, observations: e.target.value })}
+                          rows={3}
+                          className="w-full bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/50 outline-none resize-none"
+                          placeholder="Ex: Orçamento válido por 10 dias úteis."
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        const res = await fetch('/api/settings/payment_settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(paymentSettings)
+                        });
+                        if (res.ok) {
+                          showToast("Configurações de pagamento salvas!");
+                        } else {
+                          showToast("Erro ao salvar configurações.", "error");
+                        }
+                      }}
+                      className="bg-primary text-white px-8 py-3 rounded-xl font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all flex items-center gap-2"
+                    >
+                      <Save size={18} /> Salvar Pagamento
+                    </button>
+                  </div>
+
+                  <div className="pt-8 border-t border-white/5">
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Outros Documentos</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 opacity-50 cursor-not-allowed">
+                      {['Contrato de Prestação de Serviço', 'Termo de Garantia', 'Recibo de Pagamento', 'Ordem de Serviço'].map((doc, i) => (
+                        <div key={i} className="p-4 bg-background-dark rounded-xl border border-border-dark flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <FileText size={18} className="text-slate-600" />
+                            <span className="font-bold text-xs">{doc}</span>
+                          </div>
+                          <ChevronRight size={16} className="text-slate-700" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

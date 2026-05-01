@@ -453,7 +453,7 @@ app.delete("/api/photos/:id", async (req, res) => {
 });
 
 app.post("/api/quotes", async (req, res) => {
-  const { client_id, project_name, total_value, discount, delivery_date, items, services } = req.body;
+  const { client_id, project_name, total_value, discount, delivery_date, items, services, origin, metadata } = req.body;
   const quote = await prisma.quotes.create({
     data: {
       client_id: parseInt(client_id),
@@ -462,6 +462,8 @@ app.post("/api/quotes", async (req, res) => {
       discount: discount || 0,
       delivery_date: delivery_date || null,
       status: 'Pendente',
+      origin: origin || 'standard',
+      metadata: metadata ? JSON.stringify(metadata) : null,
       quote_items: {
         create: items.map((item: any) => ({
           material_id: parseInt(item.material_id),
@@ -474,9 +476,9 @@ app.post("/api/quotes", async (req, res) => {
       },
       quote_services: {
         create: services ? services.map((s: any) => ({
-          service_id: parseInt(s.service_id),
-          quantity: s.quantity,
-          unit_price: s.unit_price,
+          service_id: s.service_id ? parseInt(s.service_id) : null,
+          quantity: Number(s.quantity) || 0,
+          unit_price: Number(s.unit_price) || 0,
           description: s.description
         })) : []
       }
@@ -506,7 +508,7 @@ app.get("/api/quotes/:id", async (req, res) => {
 
 app.put("/api/quotes/:id", async (req, res) => {
   const { id } = req.params;
-  const { client_id, project_name, total_value, discount, delivery_date, items, services } = req.body;
+  const { client_id, project_name, total_value, discount, delivery_date, items, services, origin, metadata } = req.body;
   await prisma.$transaction([
     prisma.quotes.update({
       where: { id: parseInt(id) },
@@ -515,7 +517,9 @@ app.put("/api/quotes/:id", async (req, res) => {
         project_name,
         total_value,
         discount: discount || 0,
-        delivery_date: delivery_date || null
+        delivery_date: delivery_date || null,
+        origin: origin || 'standard',
+        metadata: metadata ? JSON.stringify(metadata) : null
       }
     }),
     prisma.quote_items.deleteMany({ where: { quote_id: parseInt(id) } }),
@@ -531,15 +535,17 @@ app.put("/api/quotes/:id", async (req, res) => {
         description: item.description
       }))
     }),
-    prisma.quote_services.createMany({
-      data: services ? services.map((s: any) => ({
-        quote_id: parseInt(id),
-        service_id: parseInt(s.service_id),
-        quantity: s.quantity,
-        unit_price: s.unit_price,
-        description: s.description
-      })) : []
-    })
+    ...(services || []).map((s: any) => 
+      prisma.quote_services.create({
+        data: {
+          quote_id: parseInt(id),
+          service_id: s.service_id ? parseInt(s.service_id) : null,
+          quantity: Number(s.quantity) || 0,
+          unit_price: Number(s.unit_price) || 0,
+          description: s.description
+        }
+      })
+    )
   ]);
   res.json({ success: true });
 });

@@ -71,12 +71,28 @@ export default function App() {
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [moduleToImport, setModuleToImport] = useState<any>(null);
   const [companyInfo, setCompanyInfo] = useState<any>(null);
+  const [documentSettings, setDocumentSettings] = useState<any>(null);
+  const [paymentSettings, setPaymentSettings] = useState<any>(null);
 
   useEffect(() => {
     fetch('/api/settings/company')
       .then(r => r.json())
       .then(data => {
         if (Object.keys(data).length > 0) setCompanyInfo(data);
+      })
+      .catch(console.error);
+
+    fetch('/api/settings/document_settings')
+      .then(r => r.json())
+      .then(data => {
+        if (Object.keys(data).length > 0) setDocumentSettings(data);
+      })
+      .catch(console.error);
+
+    fetch('/api/settings/payment_settings')
+      .then(r => r.json())
+      .then(data => {
+        if (Object.keys(data).length > 0) setPaymentSettings(data);
       })
       .catch(console.error);
   }, []);
@@ -167,6 +183,8 @@ export default function App() {
           moduleToAdd={moduleToImport}
           onModuleAdded={() => setModuleToImport(null)}
           companyInfo={companyInfo}
+          documentSettings={documentSettings}
+          paymentSettings={paymentSettings}
         />
       );
       case 'cut-plan': return <CutPlanView showToast={showToast} />;
@@ -187,12 +205,12 @@ export default function App() {
       case 'history': return (
         <HistoryView
           searchTerm={globalSearch}
-          onEdit={(id) => {
+          onEdit={(id, origin) => {
             setEditQuoteId(id);
-            setActiveTab('quotes');
+            setActiveTab(origin === 'quick' ? 'quick-quote' : 'quotes');
           }}
           showToast={showToast}
-          generateQuotePDF={(quote) => generateQuotePDF(quote, companyInfo)}
+          generateQuotePDF={(quote, type) => generateQuotePDF(quote, companyInfo, type, documentSettings, paymentSettings)}
         />
       );
       case 'settings': return <SettingsView showToast={showToast} />;

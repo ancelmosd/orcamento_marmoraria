@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Search, Filter, Calendar, FileDown, MessageCircle, 
-  Settings, X, Info, Layers, Construction, Camera 
+  Settings, X, Info, Layers, Construction, Camera,
+  Briefcase, FileText, ListChecks, Banknote, ClipboardList, FileDigit
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { normalizeSearchText } from '../utils/helpers';
@@ -11,7 +12,7 @@ interface HistoryViewProps {
   searchTerm: string;
   onEdit: (id: number, origin: string) => void;
   showToast: (m: string, t?: 'success' | 'error') => void;
-  generateQuotePDF: (quote: any) => void;
+  generateQuotePDF: (quote: any, type?: string) => void;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ 
@@ -25,6 +26,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [selectedQuoteDetails, setSelectedQuoteDetails] = useState<any | null>(null);
   const [quoteToDelete, setQuoteToDelete] = useState<number | null>(null);
   const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null);
+  const [showExportModal, setShowExportModal] = useState<any | null>(null);
 
   const fetchQuotes = async () => {
     try {
@@ -56,6 +58,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       quote.created_at || ''
     ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
   );
+
+  const exportOptions = [
+    { id: 'comercial', label: 'Proposta Comercial', icon: Briefcase, color: 'text-blue-400', bgColor: 'bg-blue-400/10' },
+    { id: 'orcamento', label: 'Orçamento', icon: FileText, color: 'text-orange-400', bgColor: 'bg-orange-400/10' },
+    { id: 'produtos', label: 'Lista de Produtos', icon: ListChecks, color: 'text-emerald-400', bgColor: 'bg-emerald-400/10' },
+    { id: 'financeiro', label: 'Resumo Financeiro', icon: Banknote, color: 'text-yellow-400', bgColor: 'bg-yellow-400/10' },
+    { id: 'os', label: 'Ordem de Serviço', icon: ClipboardList, color: 'text-purple-400', bgColor: 'bg-purple-400/10' },
+    { id: 'recibo', label: 'Recibo', icon: FileDigit, color: 'text-pink-400', bgColor: 'bg-pink-400/10' },
+  ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -292,15 +303,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                             const res = await fetch(`/api/quotes/${quote.id}`);
                             if (res.ok) {
                               const fullQuote = await res.json();
-                              generateQuotePDF(fullQuote);
-                              showToast("PDF gerado com sucesso!");
+                              setShowExportModal(fullQuote);
                             }
                           } catch (err) {
-                            showToast("Erro ao gerar PDF.", "error");
+                            showToast("Erro ao carregar dados para exportação.", "error");
                           }
                         }}
                         className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-emerald-400"
-                        title="Exportar PDF"
+                        title="Exportar Documento"
                       >
                         <FileDown size={14} />
                       </button>
@@ -514,17 +524,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
               <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
                 <button
-                  onClick={() => {
-                    try {
-                      generateQuotePDF(selectedQuoteDetails);
-                      showToast("PDF gerado com sucesso!");
-                    } catch (err) {
-                      showToast("Erro ao gerar PDF.", "error");
-                    }
-                  }}
+                  onClick={() => setShowExportModal(selectedQuoteDetails)}
                   className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
                 >
-                  <FileDown size={18} /> Exportar PDF
+                  <FileDown size={18} /> Gerar Documento
                 </button>
                 <button
                   onClick={() => {
@@ -544,6 +547,48 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   Fechar
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showExportModal && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowExportModal(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#1A1F2C] border border-white/5 rounded-[28px] w-full max-w-sm overflow-hidden shadow-2xl p-6 flex flex-col items-center"
+            >
+              <h2 className="text-lg font-black italic text-white tracking-tighter mb-0.5 uppercase">Gerar Documento</h2>
+              <p className="text-slate-500 text-[9px] mb-6 font-bold">Escolha o tipo de arquivo para #{showExportModal.id}</p>
+
+              <div className="grid grid-cols-2 gap-2 w-full">
+                {exportOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      generateQuotePDF(showExportModal, opt.id);
+                      setShowExportModal(null);
+                      showToast(`${opt.label} gerado com sucesso!`);
+                    }}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-[20px] bg-[#222834] border border-white/5 hover:border-primary/50 transition-all hover:bg-white/5 group"
+                  >
+                    <div className={`p-2.5 rounded-xl ${opt.bgColor} ${opt.color} group-hover:scale-110 transition-transform`}>
+                      <opt.icon size={20} />
+                    </div>
+                    <span className="text-[8px] font-black uppercase tracking-widest text-center text-slate-300">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setShowExportModal(null)}
+                className="mt-6 w-full py-2.5 bg-white/5 hover:bg-white/10 rounded-xl font-black uppercase tracking-[0.2em] text-[9px] transition-all text-slate-400 hover:text-white"
+              >
+                Cancelar
+              </button>
             </motion.div>
           </div>
         )}

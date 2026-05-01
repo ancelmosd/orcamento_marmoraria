@@ -22,7 +22,9 @@ export default function QuotesView({
   showToast: (m: string, t?: 'success' | 'error') => void,
   moduleToAdd?: ModuleTemplate | null,
   onModuleAdded?: () => void,
-  companyInfo?: any
+  companyInfo?: any,
+  documentSettings?: any,
+  paymentSettings?: any
 }) {
   const [clients, setClients] = useState<Client[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -611,7 +613,7 @@ export default function QuotesView({
                       items: quoteItems,
                       services: quoteServices
                     };
-                    generateQuotePDF(quoteData, companyInfo);
+                    generateQuotePDF(quoteData, companyInfo, 'standard', documentSettings, paymentSettings);
                     showToast("PDF gerado com sucesso!");
                   } catch (err) {
                     showToast("Erro ao gerar PDF.", "error");
