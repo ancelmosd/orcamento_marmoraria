@@ -110,7 +110,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
 
     // -- INFORMAÇÕES GERAIS --
     if (documentSettings?.generalInfo) {
-      currentY += 5; // 7 -> 5
+      currentY += 2; // Reduzido de 5 para 2
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(20, currentY, pageWidth - 40, 7, 'F'); // 8 -> 7
       doc.setFont('helvetica', 'bold');
@@ -133,8 +133,8 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
 
     // -- CONTEÚDO DINÂMICO --
     if (type === 'comercial') {
-      // Se já adicionamos o gap acima, não precisamos de muito mais aqui
-      if (!documentSettings?.generalInfo) currentY += 3;
+      // Se já adicionamos o gap de 2mm acima, não precisamos de mais aqui
+      if (!documentSettings?.generalInfo) currentY += 2; // Reduzido de 3 para 2
       // Bloco unificado: título + cabeçalho da tabela
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(20, currentY, pageWidth - 40, 14, 'F');
@@ -275,7 +275,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
       }
     } else {
       // -- DETALHAMENTO TÉCNICO (ITEMS E SERVIÇOS) --
-      if (!documentSettings?.generalInfo) currentY += 6;
+      if (!documentSettings?.generalInfo) currentY += 2; // Reduzido de 6 para 2
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(20, currentY, pageWidth - 40, 8, 'F');
       doc.setFont('helvetica', 'bold');
