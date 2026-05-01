@@ -146,42 +146,76 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   <h3 className="font-bold text-white leading-tight">{quote.client_name}</h3>
                   <p className="text-xs text-slate-400 mt-1">{quote.project_name}</p>
                 </div>
-                <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(quote.status || '')}`}>
-                  {quote.status || 'Pendente'}
+                <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-colors ${getStatusColor(quote.status || '')}`} onClick={(e) => e.stopPropagation()}>
+                  <select
+                    value={quote.status || 'Pendente'}
+                    onChange={(e) => updateStatus(quote.id, e.target.value)}
+                    className="bg-transparent border-none text-current outline-none cursor-pointer font-bold uppercase"
+                  >
+                    <option value="Pendente" className="text-black">Pendente</option>
+                    <option value="Aprovado" className="text-black">Aprovado</option>
+                    <option value="Em Produção" className="text-black">Em Produção</option>
+                    <option value="Entregue" className="text-black">Entregue</option>
+                    <option value="Cancelado" className="text-black">Cancelado</option>
+                  </select>
                 </div>
               </div>
               <div className="flex justify-between items-end pt-2 border-t border-white/5">
                 <div>
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Valor</p>
-                  <p className="text-lg font-black text-primary">R$ {(quote.total_value || 0).toLocaleString()}</p>
+                  <p className="text-lg font-black text-primary">R$ {(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Data</p>
                   <p className="text-xs font-bold text-slate-300">{quote.created_at ? new Date(quote.created_at).toLocaleDateString('pt-BR') : '-'}</p>
                 </div>
               </div>
-              <div className="flex gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                <select
-                  value={quote.status}
-                  onChange={(e) => updateStatus(quote.id, e.target.value)}
-                  className="flex-1 bg-white/5 border border-border-dark rounded-lg px-2 py-2 text-[10px] font-bold uppercase outline-none"
+              <div className="flex flex-wrap gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(quote.id, quote.origin || 'standard');
+                  }}
+                  className="flex-1 py-2 bg-white/5 text-primary rounded-lg border border-border-dark flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
                 >
-                  <option value="Pendente">Pendente</option>
-                  <option value="Aprovado">Aprovado</option>
-                  <option value="Em Produção">Em Produção</option>
-                  <option value="Entregue">Entregue</option>
-                  <option value="Cancelado">Cancelado</option>
-                </select>
+                  <Settings size={14} /> Editar
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedGalleryId(quote.id);
+                  }}
+                  className="flex-1 py-2 bg-primary/10 text-primary rounded-lg border border-primary/20 flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
+                >
+                  <Camera size={14} /> Fotos
+                </button>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const res = await fetch(`/api/quotes/${quote.id}`);
+                      if (res.ok) {
+                        const fullQuote = await res.json();
+                        setShowExportModal(fullQuote);
+                      }
+                    } catch (err) {
+                      showToast("Erro ao carregar dados.", "error");
+                    }
+                  }}
+                  className="flex-1 py-2 bg-white/5 text-emerald-400 rounded-lg border border-border-dark flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
+                >
+                  <FileDown size={14} /> PDF
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     const phone = (quote.clients?.phone || '').replace(/\D/g, '');
-                    const message = encodeURIComponent(`Olá ${quote.client_name || ''}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${quote.project_name || ''}\n*Valor:* R$ ${(quote.total_value || 0).toLocaleString()}\n*Status:* ${quote.status || ''}\n\nFicamos à disposição!`);
+                    const message = encodeURIComponent(`Olá ${quote.client_name || ''}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${quote.project_name || ''}\n*Valor:* R$ ${(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n*Status:* ${quote.status || ''}\n\nFicamos à disposição!`);
                     window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
                   }}
-                  className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20"
+                  className="flex-1 py-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
                 >
-                  <MessageCircle size={16} />
+                  <MessageCircle size={14} /> Zap
                 </button>
                 <button
                   onClick={(e) => {
@@ -242,20 +276,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     R$ {(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${getStatusColor(quote.status || '')}`}>
-                        {quote.status || 'Pendente'}
-                      </span>
+                    <div className={`inline-flex items-center rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${getStatusColor(quote.status || '')}`}>
                       <select
-                        value={quote.status}
+                        value={quote.status || 'Pendente'}
                         onChange={(e) => updateStatus(quote.id, e.target.value)}
-                        className="bg-transparent border-none text-[10px] font-bold uppercase text-slate-500 outline-none cursor-pointer hover:text-white transition-colors"
+                        className="bg-transparent border-none text-current outline-none cursor-pointer font-bold uppercase"
                       >
-                        <option value="Pendente">Pendente</option>
-                        <option value="Aprovado">Aprovado</option>
-                        <option value="Em Produção">Em Produção</option>
-                        <option value="Entregue">Entregue</option>
-                        <option value="Cancelado">Cancelado</option>
+                        <option value="Pendente" className="text-black">Pendente</option>
+                        <option value="Aprovado" className="text-black">Aprovado</option>
+                        <option value="Em Produção" className="text-black">Em Produção</option>
+                        <option value="Entregue" className="text-black">Entregue</option>
+                        <option value="Cancelado" className="text-black">Cancelado</option>
                       </select>
                     </div>
                   </td>
@@ -494,11 +525,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         <div>
                           <p className="font-bold text-sm">{service.description || 'Serviço sem descrição'}</p>
                           <p className="text-[10px] text-slate-500 mt-1">
-                            Qtd: {(service.quantity || 0).toFixed(2)} • Un: R$ {(service.unit_price || 0).toLocaleString()}
+                            Qtd: {(service.quantity || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • Un: R$ {(service.unit_price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-bold text-primary">R$ {((service.quantity || 0) * (service.unit_price || 0)).toLocaleString()}</p>
+                          <p className="text-sm font-bold text-primary">R$ {((service.quantity || 0) * (service.unit_price || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         </div>
                       </div>
                     ))}
@@ -512,7 +543,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   </div>
                   <div className="text-right space-y-1">
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Valor Total</p>
-                    <p className="text-3xl font-black text-primary">R$ {(selectedQuoteDetails.total_value || 0).toLocaleString()}</p>
+                    <p className="text-3xl font-black text-primary">R$ {(selectedQuoteDetails.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                   </div>
                 </div>
 
