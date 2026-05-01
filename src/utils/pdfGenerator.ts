@@ -130,7 +130,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
 
     // -- CONTEÚDO DINÂMICO --
     if (type === 'comercial') {
-      currentY += 5; // 8 -> 5
+      currentY += 3; // Reduzido de 5 para 3
       // Bloco unificado: título + cabeçalho da tabela
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(20, currentY, pageWidth - 40, 14, 'F');
@@ -271,13 +271,13 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
       }
     } else {
       // -- DETALHAMENTO TÉCNICO (ITEMS E SERVIÇOS) --
-      currentY += 12;
+      currentY += 6; // Reduzido de 12 para 6
       doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
       doc.rect(20, currentY, pageWidth - 40, 8, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('Detalhamento Técnico', 25, currentY + 5.5);
 
-      currentY += 10;
+      currentY += 6; // Reduzido de 10 para 6
 
       const body = [
         ...(quote.items || []).map((item: any) => [
