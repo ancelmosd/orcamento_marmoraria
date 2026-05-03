@@ -32,6 +32,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [clientPayments, setClientPayments] = useState<any[]>([]);
   const [showReceiptOptions, setShowReceiptOptions] = useState<any | null>(null);
   const [receiptAmount, setReceiptAmount] = useState<string>('');
+  const [receiptDescription, setReceiptDescription] = useState<string>('');
 
   const fetchQuotes = async (silent = false) => {
     try {
@@ -793,6 +794,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   onClick={() => {
                     setShowReceiptOptions(selectedQuoteDetails);
                     setReceiptAmount('');
+                    setReceiptDescription('Pagamento');
+                    setShowExportModal(null);
                   }}
                   className="px-8 py-3 bg-pink-600 hover:bg-pink-700 rounded-xl font-bold text-sm transition-colors text-white flex items-center gap-2"
                 >
@@ -835,7 +838,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       clientPayments.map((p: any) => (
                         <button
                           key={p.id}
-                          onClick={() => setReceiptAmount(p.amount.toString())}
+                          onClick={() => {
+                            setReceiptAmount(p.amount.toString());
+                            setReceiptDescription(p.description || '');
+                          }}
                           className={`p-3 rounded-xl border transition-all text-left flex justify-between items-center ${
                             receiptAmount === p.amount.toString() 
                               ? 'bg-primary/20 border-primary text-primary' 
@@ -856,7 +862,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ou informe um Valor Customizado</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Valor (R$)</label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                     <input
@@ -868,6 +874,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       className="w-full bg-background-dark/50 border border-border-dark rounded-xl pl-10 pr-4 py-3 outline-none focus:border-primary transition-colors text-sm font-bold"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Referente a (Descrição)</label>
+                  <input
+                    type="text"
+                    value={receiptDescription}
+                    onChange={(e) => setReceiptDescription(e.target.value)}
+                    placeholder="Ex: Sinal de 50%"
+                    className="w-full bg-background-dark/50 border border-border-dark rounded-xl px-4 py-3 outline-none focus:border-primary transition-colors text-sm"
+                  />
                 </div>
               </div>
 
@@ -886,6 +903,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                     }
                     generateQuotePDF(showReceiptOptions, 'recibo', { 
                       amount: parseFloat(receiptAmount), 
+                      description: receiptDescription,
                       payments: clientPayments 
                     });
                     setShowReceiptOptions(null);

@@ -96,7 +96,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
       const amount = extraData?.amount || 0;
       const projectName = quote.project_name || 'Projeto';
 
-      const receiptText = `Recebemos de ${clientName}, a quantia de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, referente ao projeto "${projectName}".`;
+      const receiptText = `Recebemos de ${clientName}, a quantia de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, referente a ${extraData?.description || 'pagamento'} do projeto "${projectName}".`;
 
       const splitText = doc.splitTextToSize(receiptText, pageWidth - 40);
       doc.text(splitText, 20, currentY);
