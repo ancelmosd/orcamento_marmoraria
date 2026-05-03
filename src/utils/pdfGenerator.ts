@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const generateQuotePDF = (quote: any, companySettings: any = null, type: string = 'standard', documentSettings: any = null, paymentSettings: any = null) => {
+export const generateQuotePDF = (quote: any, companySettings: any = null, type: string = 'standard', documentSettings: any = null, paymentSettings: any = null, extraData: any = null) => {
   try {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -83,8 +83,63 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
     doc.setFontSize(12); // 14 -> 12
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
 
-    const title = type === 'comercial' ? 'PROPOSTA COMERCIAL' : 'ORÇAMENTO DETALHADO';
+    const title = type === 'recibo' ? 'RECIBO DE PAGAMENTO' : (type === 'comercial' ? 'PROPOSTA COMERCIAL' : 'ORÇAMENTO DETALHADO');
     doc.text(`${title} #${String(quote.id).padStart(3, '0')}`, 25, 54.5);
+
+    if (type === 'recibo') {
+      let currentY = 70;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+
+      const clientName = quote.client_name || 'N/A';
+      const amount = extraData?.amount || 0;
+      const projectName = quote.project_name || 'Projeto';
+
+      const receiptText = `Recebemos de ${clientName}, a quantia de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, referente ao projeto "${projectName}".`;
+
+      const splitText = doc.splitTextToSize(receiptText, pageWidth - 40);
+      doc.text(splitText, 20, currentY);
+
+      currentY += (splitText.length * 6) + 15;
+
+      // Financial Summary Table
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.text('Resumo Financeiro do Cliente', 20, currentY);
+      currentY += 5;
+
+      const payments = extraData?.payments || [];
+      const tableData = payments.map((p: any) => [
+        new Date(p.created_at).toLocaleDateString('pt-BR'),
+        p.description || '-',
+        p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '-',
+        `R$ ${p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        p.status === 'pago' ? 'Pago' : (p.due_date && new Date(p.due_date) < new Date() ? 'Atrasado' : 'Pendente')
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Data', 'Descrição', 'Vencimento', 'Valor', 'Status']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [40, 40, 40], fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        margin: { left: 20, right: 20 }
+      });
+
+      // Signature
+      if (payment.showSignature) {
+        const finalY = (doc as any).lastAutoTable.finalY + 35;
+        doc.setDrawColor(200, 200, 200);
+        doc.line(60, finalY, pageWidth - 60, finalY);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(company.name, pageWidth / 2, finalY + 5, { align: 'center' });
+      }
+
+      return doc.save(`recibo_${quote.id}.pdf`);
+    }
 
     // -- INFORMAÇÕES DO CLIENTE --
     let currentY = 63; // 68 -> 63

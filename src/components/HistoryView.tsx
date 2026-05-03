@@ -13,7 +13,7 @@ interface HistoryViewProps {
   searchTerm: string;
   onEdit: (id: number, origin: string) => void;
   showToast: (m: string, t?: 'success' | 'error') => void;
-  generateQuotePDF: (quote: any, type?: string) => void;
+  generateQuotePDF: (quote: any, type?: string, extraData?: any) => void;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({ 
@@ -30,6 +30,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [showExportModal, setShowExportModal] = useState<any | null>(null);
   const [showClientFinance, setShowClientFinance] = useState<any | null>(null);
   const [clientPayments, setClientPayments] = useState<any[]>([]);
+  const [showReceiptOptions, setShowReceiptOptions] = useState<any | null>(null);
+  const [receiptAmount, setReceiptAmount] = useState<string>('');
 
   const fetchQuotes = async (silent = false) => {
     try {
@@ -780,9 +782,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               <div className="p-6 bg-white/5 border-t border-border-dark flex justify-end gap-3">
                 <button
                   onClick={() => {
-                    if (selectedQuoteDetails) {
-                      generateQuotePDF(selectedQuoteDetails, 'recibo');
-                    }
+                    setShowReceiptOptions(selectedQuoteDetails);
+                    setReceiptAmount('');
                   }}
                   className="px-8 py-3 bg-pink-600 hover:bg-pink-700 rounded-xl font-bold text-sm transition-colors text-white flex items-center gap-2"
                 >
@@ -793,6 +794,96 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   className="px-8 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-sm transition-colors text-white"
                 >
                   Fechar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showReceiptOptions && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowReceiptOptions(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-secondary-dark border border-border-dark rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-border-dark flex justify-between items-center bg-white/5">
+                <h3 className="text-xl font-bold">Configurar Recibo</h3>
+                <button onClick={() => setShowReceiptOptions(null)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Selecione uma Parcela</label>
+                  <div className="grid gap-2 max-h-[200px] overflow-y-auto pr-2 scrollbar-thin">
+                    {clientPayments.length > 0 ? (
+                      clientPayments.map((p: any) => (
+                        <button
+                          key={p.id}
+                          onClick={() => setReceiptAmount(p.amount.toString())}
+                          className={`p-3 rounded-xl border transition-all text-left flex justify-between items-center ${
+                            receiptAmount === p.amount.toString() 
+                              ? 'bg-primary/20 border-primary text-primary' 
+                              : 'bg-background-dark/50 border-border-dark hover:border-slate-500'
+                          }`}
+                        >
+                          <div>
+                            <p className="text-sm font-bold">{p.description || 'Parcela'}</p>
+                            <p className="text-[10px] text-slate-500">{new Date(p.due_date || p.created_at).toLocaleDateString('pt-BR')}</p>
+                          </div>
+                          <span className="font-bold">R$ {p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-xs text-slate-500 italic">Nenhum lançamento financeiro encontrado.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ou informe um Valor Customizado</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={receiptAmount}
+                      onChange={(e) => setReceiptAmount(e.target.value)}
+                      placeholder="0,00"
+                      className="w-full bg-background-dark/50 border border-border-dark rounded-xl pl-10 pr-4 py-3 outline-none focus:border-primary transition-colors text-sm font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
+                <button
+                  onClick={() => setShowReceiptOptions(null)}
+                  className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (!receiptAmount) {
+                      showToast("Informe o valor do recibo.", "error");
+                      return;
+                    }
+                    generateQuotePDF(showReceiptOptions, 'recibo', { 
+                      amount: parseFloat(receiptAmount), 
+                      payments: clientPayments 
+                    });
+                    setShowReceiptOptions(null);
+                  }}
+                  className="flex-1 px-4 py-3 bg-primary hover:bg-primary-dark rounded-xl font-bold text-sm transition-colors shadow-lg shadow-primary/20"
+                >
+                  Gerar Recibo PDF
                 </button>
               </div>
             </motion.div>

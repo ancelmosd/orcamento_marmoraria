@@ -210,7 +210,7 @@ export default function App() {
             setActiveTab(origin === 'quick' ? 'quick-quote' : 'quotes');
           }}
           showToast={showToast}
-          generateQuotePDF={(quote, type) => generateQuotePDF(quote, companyInfo, type, documentSettings, paymentSettings)}
+          generateQuotePDF={(quote, type, extraData) => generateQuotePDF(quote, companyInfo, type, documentSettings, paymentSettings, extraData)}
         />
       );
       case 'settings': return <SettingsView showToast={showToast} />;
