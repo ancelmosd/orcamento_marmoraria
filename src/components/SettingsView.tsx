@@ -5,7 +5,8 @@ import {
   Construction, Database, Download, Upload,
   Box, Bolt, Package, FileText, Trash2,
   User, Users, Building2, Bell, Lock, FileCode,
-  Shield, Mail, Phone, MapPin, Briefcase, ChevronRight, Camera
+  Shield, Mail, Phone, MapPin, Briefcase, ChevronRight, Camera,
+  Palette, Eraser, PenTool, Image as ImageIcon
 } from 'lucide-react';
 import { ModuleTemplate, Service, Supply } from '../types';
 import ServicesView from './ServicesView';
@@ -58,8 +59,15 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
     showLogo: true,
     showBankData: false,
     showSignature: true,
-    useDynamicDeadline: false
+    useDynamicDeadline: false,
+    signatureImage: '',
+    useDigitalSignature: false,
+    signatureColor: '#000000'
   });
+
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
@@ -190,6 +198,59 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
       }
     }
     e.target.value = '';
+  };
+
+  const startDrawing = (e: any) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.strokeStyle = paymentSettings.signatureColor || '#000000';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    setIsDrawing(true);
+  };
+
+  const draw = (e: any) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
+    const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
+    
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const saveSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const dataURL = canvas.toDataURL('image/png');
+    setPaymentSettings({ ...paymentSettings, signatureImage: dataURL, useDigitalSignature: true });
+    setIsSignatureModalOpen(false);
   };
 
   const tabs: { id: TabID, label: string, icon: any, category?: string }[] = [
@@ -737,6 +798,96 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
                         </div>
                       </div>
 
+                      <div className="space-y-4 md:col-span-2 pt-4 border-t border-white/5">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-[10px] font-black text-primary uppercase tracking-widest">Assinatura Digital</h5>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                              type="checkbox"
+                              checked={paymentSettings.useDigitalSignature}
+                              onChange={e => setPaymentSettings({ ...paymentSettings, useDigitalSignature: e.target.checked })}
+                              className="w-4 h-4 rounded border-border-dark bg-background-dark text-primary focus:ring-primary/50"
+                            />
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Usar Assinatura Digital</span>
+                          </label>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-4 items-center">
+                          <div className="w-48 h-24 bg-background-dark border border-border-dark rounded-xl flex items-center justify-center overflow-hidden relative group">
+                            {paymentSettings.signatureImage ? (
+                              <img src={paymentSettings.signatureImage} alt="Assinatura" className="max-w-full max-h-full object-contain" />
+                            ) : (
+                              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest italic">Nenhuma Assinatura</span>
+                            )}
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <button onClick={() => setIsSignatureModalOpen(true)} className="p-2 bg-primary text-white rounded-lg hover:scale-110 transition-all">
+                                <PenTool size={16} />
+                              </button>
+                              <div className="relative">
+                                <button className="p-2 bg-emerald-600 text-white rounded-lg hover:scale-110 transition-all">
+                                  <ImageIcon size={16} />
+                                </button>
+                                <input 
+                                  type="file" 
+                                  accept="image/png"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onloadend = () => {
+                                        setPaymentSettings({ ...paymentSettings, signatureImage: reader.result as string, useDigitalSignature: true });
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                  className="absolute inset-0 opacity-0 cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 space-y-4 w-full">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <Palette size={14} /> Cor da Assinatura
+                              </label>
+                              <div className="flex gap-2">
+                                {['#000000', '#0000FF', '#FF0000', '#008000'].map(color => (
+                                  <button
+                                    key={color}
+                                    onClick={() => setPaymentSettings({ ...paymentSettings, signatureColor: color })}
+                                    className={`w-8 h-8 rounded-full border-2 transition-all ${paymentSettings.signatureColor === color ? 'border-primary scale-110' : 'border-transparent'}`}
+                                    style={{ backgroundColor: color }}
+                                  />
+                                ))}
+                                <input 
+                                  type="color" 
+                                  value={paymentSettings.signatureColor}
+                                  onChange={e => setPaymentSettings({ ...paymentSettings, signatureColor: e.target.value })}
+                                  className="w-8 h-8 bg-transparent border-none cursor-pointer"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => setIsSignatureModalOpen(true)}
+                                className="flex-1 px-4 py-2 bg-white/5 hover:bg-white/10 border border-border-dark rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                              >
+                                Desenhar Assinatura
+                              </button>
+                              {paymentSettings.signatureImage && (
+                                <button 
+                                  onClick={() => setPaymentSettings({ ...paymentSettings, signatureImage: '', useDigitalSignature: false })}
+                                  className="px-4 py-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                                >
+                                  Remover
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-2 md:col-span-2 pt-4">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Observações</label>
                         <textarea
@@ -995,6 +1146,79 @@ export default function SettingsView({ showToast }: SettingsViewProps) {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Desenho de Assinatura */}
+      <AnimatePresence>
+        {isSignatureModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setIsSignatureModalOpen(false)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-secondary-dark border border-border-dark rounded-[28px] w-full max-w-lg overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-border-dark flex justify-between items-center bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-lg text-primary">
+                    <PenTool size={20} />
+                  </div>
+                  <h3 className="text-xl font-bold">Desenhar Assinatura</h3>
+                </div>
+                <button onClick={() => setIsSignatureModalOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6">
+                <div className="bg-white rounded-2xl overflow-hidden cursor-crosshair shadow-inner border-2 border-border-dark">
+                  <canvas
+                    ref={canvasRef}
+                    width={448}
+                    height={200}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                    className="w-full h-[200px]"
+                  />
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Cor selecionada:</p>
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: paymentSettings.signatureColor }} />
+                  </div>
+                  <button 
+                    onClick={clearCanvas}
+                    className="flex items-center gap-2 text-xs font-bold text-red-500 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all"
+                  >
+                    <Eraser size={14} /> Limpar Canvas
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
+                <button
+                  onClick={() => setIsSignatureModalOpen(false)}
+                  className="flex-1 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={saveSignature}
+                  className="flex-1 px-4 py-3 bg-primary hover:bg-primary-dark rounded-xl font-bold text-sm transition-colors shadow-lg shadow-primary/20"
+                >
+                  Confirmar Assinatura
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

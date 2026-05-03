@@ -131,6 +131,15 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
       // Signature
       if (payment.showSignature) {
         const finalY = (doc as any).lastAutoTable.finalY + 35;
+        
+        if (payment.useDigitalSignature && payment.signatureImage) {
+          try {
+            doc.addImage(payment.signatureImage, 'PNG', pageWidth / 2 - 25, finalY - 9, 50, 15);
+          } catch (e) {
+            console.error('Error adding signature to receipt:', e);
+          }
+        }
+
         doc.setDrawColor(200, 200, 200);
         doc.line(60, finalY, pageWidth - 60, finalY);
         doc.setFontSize(8);
@@ -560,6 +569,15 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
       }
 
       doc.setDrawColor(200, 200, 200);
+      
+      if (payment.useDigitalSignature && payment.signatureImage) {
+        try {
+          doc.addImage(payment.signatureImage, 'PNG', 30, currentY - 9, 50, 15);
+        } catch (e) {
+          console.error('Error adding digital signature:', e);
+        }
+      }
+
       doc.line(20, currentY, 90, currentY);
       doc.line(pageWidth - 90, currentY, pageWidth - 20, currentY);
 
