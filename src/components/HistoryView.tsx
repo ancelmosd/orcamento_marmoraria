@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Search, Filter, Calendar, FileDown, MessageCircle, 
   Settings, X, Info, Layers, Construction, Camera,
-  Briefcase, FileText, ListChecks, Banknote, ClipboardList, FileDigit
+  Briefcase, FileText, ListChecks, Banknote, ClipboardList, FileDigit,
+  Check, DollarSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { normalizeSearchText } from '../utils/helpers';
@@ -27,6 +28,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [quoteToDelete, setQuoteToDelete] = useState<number | null>(null);
   const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null);
   const [showExportModal, setShowExportModal] = useState<any | null>(null);
+  const [showClientFinance, setShowClientFinance] = useState<any | null>(null);
+  const [clientPayments, setClientPayments] = useState<any[]>([]);
 
   const fetchQuotes = async (silent = false) => {
     try {
@@ -103,6 +106,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       }
     } catch (error) {
       showToast("Erro de conexão.", "error");
+    }
+  };
+  
+  const fetchClientPayments = async (clientId: number) => {
+    try {
+      const res = await fetch(`/api/payments?client_id=${clientId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setClientPayments(data || []);
+      }
+    } catch (e) {
+      showToast("Erro ao carregar financeiro.", "error");
     }
   };
 
@@ -590,9 +605,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
                 <button
                   onClick={() => setShowExportModal(selectedQuoteDetails)}
-                  className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                  className="bg-emerald-600 text-white px-4 py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
                 >
-                  <FileDown size={18} /> Gerar Documento
+                  <FileDown size={18} /> Documento
+                </button>
+                <button
+                  onClick={() => {
+                    if (selectedQuoteDetails.client_id) {
+                      fetchClientPayments(selectedQuoteDetails.client_id);
+                      setShowClientFinance({
+                        id: selectedQuoteDetails.client_id,
+                        name: selectedQuoteDetails.client_name
+                      });
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-4 py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Banknote size={18} /> Financeiro
                 </button>
                 <button
                   onClick={() => {
@@ -654,6 +683,108 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               >
                 Cancelar
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showClientFinance && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowClientFinance(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-secondary-dark border border-border-dark rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col"
+            >
+              <div className="p-6 border-b border-border-dark flex justify-between items-center bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-500/10 p-2 rounded-lg text-blue-400">
+                    <DollarSign size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold">Financeiro: {showClientFinance.name}</h3>
+                    <p className="text-xs text-slate-500 uppercase font-bold tracking-widest mt-1">Lançamentos Financeiros</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowClientFinance(null)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+                <div className="bg-background-dark/50 rounded-xl border border-border-dark overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-white/5 uppercase font-bold text-slate-500 text-[10px] tracking-widest">
+                      <tr>
+                        <th className="px-4 py-3">Data</th>
+                        <th className="px-4 py-3">Descrição</th>
+                        <th className="px-4 py-3">Vencimento</th>
+                        <th className="px-4 py-3">Valor</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-dark">
+                      {clientPayments.length === 0 ? (
+                        <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500 italic">Nenhum lançamento financeiro.</td></tr>
+                      ) : (
+                        clientPayments.map(p => (
+                          <tr key={p.id} className="hover:bg-white/5">
+                            <td className="px-4 py-3 text-slate-400">
+                              {p.payment_date ? new Date(p.payment_date).toLocaleDateString('pt-BR') : new Date(p.created_at).toLocaleDateString('pt-BR')}
+                            </td>
+                            <td className="px-4 py-3 font-semibold">{p.description || '-'}</td>
+                            <td className="px-4 py-3 text-slate-400">
+                              {p.due_date ? new Date(p.due_date).toLocaleDateString('pt-BR') : '-'}
+                            </td>
+                            <td className="px-4 py-3 font-bold text-primary">R$ {p.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${p.status === 'pago' ? 'bg-emerald-500/10 text-emerald-400' :
+                                (p.due_date && new Date(p.due_date) < new Date() ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400')
+                                }`}>
+                                {p.status === 'pago' ? 'Pago' : (p.due_date && new Date(p.due_date) < new Date() ? 'Atrasado' : 'Pendente')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {p.status === 'pendente' && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await fetch(`/api/payments/${p.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'pago', payment_date: new Date().toISOString() })
+                                      });
+                                      showToast("Pagamento baixado!");
+                                      fetchClientPayments(showClientFinance.id);
+                                    } catch (err) {
+                                      showToast("Erro ao dar baixa.", "error");
+                                    }
+                                  }}
+                                  className="text-emerald-500 hover:text-emerald-400 p-1" title="Dar baixa"
+                                >
+                                  <Check size={16} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="p-6 bg-white/5 border-t border-border-dark flex justify-end">
+                <button
+                  onClick={() => setShowClientFinance(null)}
+                  className="px-8 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-sm transition-colors text-white"
+                >
+                  Fechar
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
