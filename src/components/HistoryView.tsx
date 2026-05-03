@@ -28,9 +28,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null);
   const [showExportModal, setShowExportModal] = useState<any | null>(null);
 
-  const fetchQuotes = async () => {
+  const fetchQuotes = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetch('/api/quotes');
       if (res.ok) {
         const data = await res.json();
@@ -39,7 +39,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     } catch (error) {
       showToast("Erro ao carregar histórico.", "error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -123,6 +123,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   };
 
   const updateDeliveryDate = async (id: number, date: string) => {
+    // Atualização otimista para feedback instantâneo
+    setQuotes(prev => prev.map(q => q.id === id ? { ...q, delivery_date: date } : q));
+
     try {
       const res = await fetch(`/api/quotes/${id}`, {
         method: 'PATCH',
@@ -130,11 +133,15 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
         body: JSON.stringify({ delivery_date: date })
       });
       if (res.ok) {
-        fetchQuotes();
         showToast(`Data de entrega atualizada!`);
+      } else {
+        // Reverter em caso de erro
+        fetchQuotes(true);
+        showToast("Erro ao atualizar data.", "error");
       }
     } catch (error) {
-      showToast("Erro ao atualizar data.", "error");
+      fetchQuotes(true);
+      showToast("Erro de conexão.", "error");
     }
   };
 
