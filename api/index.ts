@@ -561,24 +561,33 @@ app.patch("/api/quotes/:id/status", async (req, res) => {
 });
 
 app.patch("/api/quotes/:id", async (req, res) => {
-  const { id } = req.params;
-  const data = req.body;
-  
-  // Ensure we don't accidentally update things that shouldn't be here
-  const allowedFields = ['delivery_date', 'status', 'project_name'];
-  const updateData: any = {};
-  
-  Object.keys(data).forEach(key => {
-    if (allowedFields.includes(key)) {
-      updateData[key] = data[key];
-    }
-  });
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    
+    // Ensure we don't accidentally update things that shouldn't be here
+    const allowedFields = ['delivery_date', 'status', 'project_name'];
+    const updateData: any = {};
+    
+    Object.keys(data).forEach(key => {
+      if (allowedFields.includes(key)) {
+        updateData[key] = data[key];
+      }
+    });
 
-  await prisma.quotes.update({
-    where: { id: parseInt(id) },
-    data: updateData
-  });
-  res.json({ success: true });
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
+
+    await prisma.quotes.update({
+      where: { id: parseInt(id) },
+      data: updateData
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("PATCH Quote Error:", error);
+    res.status(500).json({ error: error.message || "Failed to update quote" });
+  }
 });
 
 app.delete("/api/quotes/:id", async (req, res) => {

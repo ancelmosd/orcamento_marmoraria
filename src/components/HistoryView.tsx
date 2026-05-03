@@ -135,9 +135,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       if (res.ok) {
         showToast(`Data de entrega atualizada!`);
       } else {
+        const errData = await res.json().catch(() => ({}));
         // Reverter em caso de erro
         fetchQuotes(true);
-        showToast("Erro ao atualizar data.", "error");
+        showToast(errData.error || "Erro ao atualizar data.", "error");
       }
     } catch (error) {
       fetchQuotes(true);
