@@ -40,6 +40,8 @@ model description_templates {
 model materials {
   id          Int           @id @default(autoincrement())
   name        String
+  cost_price  Float?        @default(0)
+  markup      Float?        @default(0)
   price       Float
   quantity    Float?        @default(0)
   description String?
@@ -124,6 +126,8 @@ model services {
 model supplies {
   id                Int    @id @default(autoincrement())
   name              String
+  cost_price        Float? @default(0)
+  markup            Float? @default(0)
   price_per_meter   Float
   minutes_per_meter Float
   unit              String @default("m")
@@ -183,6 +187,20 @@ model appointments {
   
   clients     clients? @relation(fields: [client_id], references: [id], onDelete: Cascade)
   quotes      quotes?  @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+}
+
+model complementary_products {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  image_url   String?
+  unit        String   @default("un")
+  quantity    Float    @default(0)
+  cost_price  Float?   @default(0)
+  markup      Float?   @default(0)
+  price       Float
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 }
 
 

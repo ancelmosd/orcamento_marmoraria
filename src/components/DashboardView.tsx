@@ -370,10 +370,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, onAction })
                                       {a.type}
                                     </span>
                                     <div className="flex items-center gap-1">
-                                      <button 
+                                      <button
                                         onClick={() => {
                                           const newStatus = a.status === 'concluido' ? 'pendente' : 'concluido';
-                                          fetch(`/api/appointments/${a.id}`, { 
+                                          fetch(`/api/appointments/${a.id}`, {
                                             method: 'PATCH',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ status: newStatus })
@@ -386,7 +386,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, onAction })
                                       >
                                         <CheckSquare size={14} />
                                       </button>
-                                      <button 
+                                      <button
                                         onClick={() => {
                                           if (window.confirm("Tem certeza que deseja excluir este compromisso?")) {
                                             fetch(`/api/appointments/${a.id}`, { method: 'DELETE' })
@@ -466,10 +466,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, onAction })
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button 
+                              <button
                                 onClick={() => {
                                   const newStatus = app.status === 'concluido' ? 'pendente' : 'concluido';
-                                  fetch(`/api/appointments/${app.id}`, { 
+                                  fetch(`/api/appointments/${app.id}`, {
                                     method: 'PATCH',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ status: newStatus })
@@ -566,7 +566,7 @@ function TableRow({ client, project, date, value, status, onEdit }: any) {
       </td>
       <td className="px-6 py-4 text-right">
         <div className="flex justify-end">
-          <div className="p-1.5 bg-white/5 rounded-md group-hover:bg-primary group-hover:text-white transition-colors text-primary">
+          <div className="p-1.5 bg-white/5 rounded-m group-hover:bg-primary group-hover:text-white transition-colors text-primary">
             <Settings size={14} />
           </div>
         </div>

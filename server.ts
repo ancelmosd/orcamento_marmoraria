@@ -374,27 +374,41 @@ async function startServer() {
   });
 
   app.post("/api/materials", async (req, res) => {
-    const { name, price, quantity, description } = req.body;
+    const { name, price, quantity, description, cost_price, markup } = req.body;
     const material = await prisma.materials.create({
-      data: { name, price, quantity, description }
+      data: { 
+        name, 
+        price: parseFloat(price), 
+        quantity: parseFloat(quantity) || 0, 
+        description,
+        cost_price: parseFloat(cost_price) || 0,
+        markup: parseFloat(markup) || 0
+      }
     });
     res.json({ id: material.id });
   });
 
   app.put("/api/materials/:id", async (req, res) => {
     const { id } = req.params;
-    const { name, price, quantity, description } = req.body;
+    const { name, price, quantity, description, cost_price, markup } = req.body;
     
     if (name !== undefined) {
       await prisma.materials.update({
         where: { id: parseInt(id) },
-        data: { name, price, quantity, description }
+        data: { 
+          name, 
+          price: parseFloat(price), 
+          quantity: parseFloat(quantity) || 0, 
+          description,
+          cost_price: parseFloat(cost_price) || 0,
+          markup: parseFloat(markup) || 0
+        }
       });
     } else {
       // Partial update for quantity only
       await prisma.materials.update({
         where: { id: parseInt(id) },
-        data: { quantity }
+        data: { quantity: parseFloat(quantity) || 0 }
       });
     }
     res.json({ success: true });
@@ -739,6 +753,28 @@ async function startServer() {
         }
       }
 
+      // Baixa automática de estoque de produtos complementares se aprovado
+      if (status === 'Aprovado' && quote.metadata) {
+        try {
+          const meta = JSON.parse(quote.metadata);
+          if (meta.complementaryProducts && Array.isArray(meta.complementaryProducts)) {
+            console.log(`[Status Update] Deducting stock for ${meta.complementaryProducts.length} complementary products for quote #${id}`);
+            for (const item of meta.complementaryProducts) {
+              if (item.productId && item.quantity) {
+                await prisma.complementary_products.update({
+                  where: { id: parseInt(item.productId) },
+                  data: {
+                    quantity: { decrement: parseFloat(item.quantity) }
+                  }
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error("[Status Update] Error deducting complementary products stock:", e);
+        }
+      }
+
       res.json({ success: true });
     } catch (error) {
       console.error("[Status Update] Fatal Error:", error);
@@ -893,19 +929,33 @@ async function startServer() {
   });
 
   app.post("/api/supplies", async (req, res) => {
-    const { name, price_per_meter, minutes_per_meter, unit } = req.body;
+    const { name, price_per_meter, minutes_per_meter, unit, cost_price, markup } = req.body;
     const supply = await prisma.supplies.create({
-      data: { name, price_per_meter, minutes_per_meter, unit: unit || 'm' }
+      data: { 
+        name, 
+        price_per_meter: parseFloat(price_per_meter), 
+        minutes_per_meter: parseFloat(minutes_per_meter), 
+        unit: unit || 'm',
+        cost_price: parseFloat(cost_price) || 0,
+        markup: parseFloat(markup) || 0
+      }
     });
     res.json({ id: supply.id });
   });
 
   app.put("/api/supplies/:id", async (req, res) => {
     const { id } = req.params;
-    const { name, price_per_meter, minutes_per_meter, unit } = req.body;
+    const { name, price_per_meter, minutes_per_meter, unit, cost_price, markup } = req.body;
     await prisma.supplies.update({
       where: { id: parseInt(id) },
-      data: { name, price_per_meter, minutes_per_meter, unit: unit || 'm' }
+      data: { 
+        name, 
+        price_per_meter: parseFloat(price_per_meter), 
+        minutes_per_meter: parseFloat(minutes_per_meter), 
+        unit: unit || 'm',
+        cost_price: parseFloat(cost_price) || 0,
+        markup: parseFloat(markup) || 0
+      }
     });
     res.json({ success: true });
   });
@@ -1124,6 +1174,74 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete appointment" });
+    }
+  });
+
+  // Complementary Products API
+  app.get("/api/complementary-products", async (req, res) => {
+    try {
+      const products = await prisma.complementary_products.findMany({
+        orderBy: { name: 'asc' }
+      });
+      res.json(products);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  app.post("/api/complementary-products", async (req, res) => {
+    try {
+      const { name, description, image_url, unit, quantity, price, cost_price, markup } = req.body;
+      const product = await prisma.complementary_products.create({
+        data: {
+          name,
+          description,
+          image_url,
+          unit: unit || 'un',
+          quantity: parseFloat(quantity) || 0,
+          price: parseFloat(price) || 0,
+          cost_price: parseFloat(cost_price) || 0,
+          markup: parseFloat(markup) || 0
+        }
+      });
+      res.json(product);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create product" });
+    }
+  });
+
+  app.put("/api/complementary-products/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, image_url, unit, quantity, price, cost_price, markup } = req.body;
+      const product = await prisma.complementary_products.update({
+        where: { id: parseInt(id) },
+        data: {
+          name,
+          description,
+          image_url,
+          unit,
+          quantity: parseFloat(quantity) || 0,
+          price: parseFloat(price) || 0,
+          cost_price: parseFloat(cost_price) || 0,
+          markup: parseFloat(markup) || 0
+        }
+      });
+      res.json(product);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update product" });
+    }
+  });
+
+  app.delete("/api/complementary-products/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await prisma.complementary_products.delete({
+        where: { id: parseInt(id) }
+      });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete product" });
     }
   });
 

@@ -48,7 +48,9 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
   const [remainderType, setRemainderType] = useState<'avista' | 'parcelas'>('avista');
   const [installments, setInstallments] = useState(2);
   const [showPaymentSettings, setShowPaymentSettings] = useState(false);
-  const [complementaryProducts, setComplementaryProducts] = useState<any[]>([]);
+  const [availableComplementaryProducts, setAvailableComplementaryProducts] = useState<any[]>([]);
+  const [selectedComplementaryProducts, setSelectedComplementaryProducts] = useState<any[]>([]);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/clients').then(r => r.json()).then(setClients);
@@ -57,6 +59,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
     fetch('/api/supplies').then(r => r.json()).then(setSupplies);
     fetch('/api/module-templates').then(r => r.json()).then(setModuleTemplates);
     fetch('/api/description-templates').then(r => r.json()).then(setDescriptionTemplates);
+    fetch('/api/complementary-products').then(r => r.json()).then(setAvailableComplementaryProducts);
 
     if (editId) {
       // Resetar estados antes de carregar
@@ -85,7 +88,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                 setDeliveryFee(Number(meta.deliveryFee) || 0);
                 setDiscountValue(Number(meta.discountValue) || 0);
                 setDiscountType(meta.discountType || 'fixed');
-                setComplementaryProducts(meta.complementaryProducts || []);
+                setSelectedComplementaryProducts(meta.selectedComplementaryProducts || []);
                 setPaymentCondition(meta.paymentCondition || 'avista');
                 setSignalPercentage(meta.signalPercentage || 50);
                 setRemainderType(meta.remainderType || 'avista');
@@ -332,7 +335,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
       });
     });
 
-    complementaryProducts.forEach(prod => {
+    selectedComplementaryProducts.forEach(prod => {
       totalServices += (Number(prod.price) || 0) * (Number(prod.quantity) || 1);
     });
 
@@ -358,7 +361,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
       remainderType,
       installments
     };
-  }, [addedModules, selectedMaterialId, materials, services, supplies, installationRate, deliveryFee, discountValue, discountType, complementaryProducts]);
+  }, [addedModules, selectedMaterialId, materials, services, supplies, installationRate, deliveryFee, discountValue, discountType, selectedComplementaryProducts]);
 
   const handleAddModule = () => {
     if (!selectedModuleId || !projectName) {
@@ -552,9 +555,8 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
             modules: modulesWithTotals,
             installationRate,
             deliveryFee,
-            discountValue,
             discountType,
-            complementaryProducts,
+            complementaryProducts: selectedComplementaryProducts,
             paymentCondition,
             signalPercentage,
             remainderType,
@@ -818,105 +820,189 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                 <h3 className="text-xl font-black text-white flex items-center gap-2">
                   <Cuboid className="text-primary" /> Produtos Complementares
                 </h3>
-                <p className="text-xs text-slate-500 italic">Adicione cubas, torneiras ou outros itens manuais.</p>
+                <p className="text-xs text-slate-500 italic">Adicione itens do estoque ou cadastre itens avulsos.</p>
               </div>
-              <button 
-                onClick={() => setComplementaryProducts([...complementaryProducts, { id: crypto.randomUUID(), name: '', details: '', unit: 'un', quantity: 1, price: 0 }])}
-                className="bg-primary/10 text-primary px-4 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all flex items-center gap-2"
-              >
-                <Plus size={14} /> Add Novo Produto
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setSelectedComplementaryProducts([...selectedComplementaryProducts, { 
+                    productId: null, 
+                    id: crypto.randomUUID(), 
+                    name: '', 
+                    details: '', 
+                    unit: 'un', 
+                    quantity: 1, 
+                    price: 0 
+                  }])}
+                  className="bg-emerald-600/10 text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"
+                >
+                  <Plus size={14} /> Item Manual
+                </button>
+                <select 
+                  className="bg-background-dark border border-border-dark rounded-xl px-4 py-2 outline-none focus:ring-1 focus:ring-primary text-sm min-w-[200px]"
+                  onChange={(e) => {
+                    const id = parseInt(e.target.value);
+                    if (!id) return;
+                    const prod = availableComplementaryProducts.find(p => p.id === id);
+                    if (prod) {
+                      const exists = selectedComplementaryProducts.find(p => p.productId === prod.id);
+                      if (exists) {
+                        showToast("Produto já adicionado.");
+                        return;
+                      }
+                      setSelectedComplementaryProducts([...selectedComplementaryProducts, {
+                        productId: prod.id,
+                        name: prod.name,
+                        price: prod.price,
+                        unit: prod.unit,
+                        quantity: 1,
+                        details: prod.description || '',
+                        image_url: prod.image_url || ''
+                      }]);
+                    }
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">+ Selecionar do Estoque</option>
+                  {availableComplementaryProducts.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} (R$ {p.price.toFixed(2)})</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="space-y-4">
-              {complementaryProducts.length === 0 ? (
+              {selectedComplementaryProducts.length === 0 ? (
                 <div className="py-8 border-2 border-dashed border-border-dark rounded-2xl flex flex-col items-center justify-center text-slate-600 gap-2">
                   <Package size={32} className="opacity-20" />
-                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">Nenhum produto complementar</p>
+                  <p className="text-xs font-bold uppercase tracking-widest opacity-40">Nenhum produto do estoque adicionado</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
-                  {complementaryProducts.map((prod, idx) => (
-                    <div key={prod.id} className="p-4 bg-background-dark rounded-xl border border-border-dark space-y-4">
+                  {selectedComplementaryProducts.map((prod, idx) => (
+                    <div key={prod.productId} className="p-4 bg-background-dark rounded-xl border border-border-dark space-y-4">
                       <div className="flex justify-between items-start">
-                        <span className="text-[10px] font-black text-primary uppercase tracking-widest">Produto #{idx + 1}</span>
+                        <div className="flex items-center gap-3">
+                          <div 
+                            onClick={() => prod.image_url && setZoomImage(prod.image_url)}
+                            className={`w-12 h-12 rounded-xl border border-border-dark overflow-hidden bg-secondary-dark flex-shrink-0 flex items-center justify-center ${prod.image_url ? 'cursor-pointer hover:ring-2 hover:ring-primary transition-all' : ''}`}
+                          >
+                            {prod.image_url ? (
+                              <img src={prod.image_url} alt={prod.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <Package size={20} className="text-slate-600" />
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-primary uppercase tracking-widest">Produto #{idx + 1}</span>
+                            <span className="font-bold text-white">{prod.name}</span>
+                          </div>
+                        </div>
                         <button 
-                          onClick={() => setComplementaryProducts(complementaryProducts.filter(p => p.id !== prod.id))}
+                          onClick={() => setSelectedComplementaryProducts(selectedComplementaryProducts.filter(p => p.productId !== prod.productId))}
                           className="p-1.5 hover:bg-red-500/10 text-slate-600 hover:text-red-500 rounded-lg transition-all"
                         >
                           <Trash2 size={14} />
                         </button>
                       </div>
+                      
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                         <div className="md:col-span-4 space-y-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">Nome do Produto</label>
                           <input 
                             value={prod.name}
+                            readOnly={!!prod.productId}
                             onChange={e => {
-                              const newProds = [...complementaryProducts];
+                              const newProds = [...selectedComplementaryProducts];
                               newProds[idx].name = e.target.value;
-                              setComplementaryProducts(newProds);
+                              setSelectedComplementaryProducts(newProds);
                             }}
-                            className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
+                            className={`w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary ${prod.productId ? 'opacity-50 cursor-not-allowed' : ''}`}
                             placeholder="Ex: Cuba Tramontina..."
                           />
                         </div>
-                        <div className="md:col-span-8 space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Detalhes Adicionais</label>
+                        <div className="md:col-span-4 space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Detalhes Adicionais</label>
                           <input 
-                            value={prod.details}
-                            onChange={e => {
-                              const newProds = [...complementaryProducts];
-                              newProds[idx].details = e.target.value;
-                              setComplementaryProducts(newProds);
+                            value={prod.details || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSelectedComplementaryProducts(selectedComplementaryProducts.map((p, i) => 
+                                i === idx ? { ...p, details: val } : p
+                              ));
                             }}
-                            className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
-                            placeholder="Modelo, cor, acabamento..."
+                            className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary text-xs italic"
+                            placeholder="Ex: Aço escovado, furo de torneira..."
                           />
                         </div>
+                        <div className="md:col-span-4 space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">URL da Imagem</label>
+                          <input 
+                            value={prod.image_url || ''}
+                            readOnly={!!prod.productId}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSelectedComplementaryProducts(selectedComplementaryProducts.map((p, i) => 
+                                i === idx ? { ...p, image_url: val } : p
+                              ));
+                            }}
+                            className={`w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary ${prod.productId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            placeholder="https://..."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                         <div className="md:col-span-3 space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Unidade</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Unidade</label>
                           <input 
                             value={prod.unit}
+                            readOnly={!!prod.productId}
                             onChange={e => {
-                              const newProds = [...complementaryProducts];
+                              const newProds = [...selectedComplementaryProducts];
                               newProds[idx].unit = e.target.value;
-                              setComplementaryProducts(newProds);
+                              setSelectedComplementaryProducts(newProds);
                             }}
-                            className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
-                            placeholder="un, m, par..."
+                            className={`w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary ${prod.productId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            placeholder="un"
                           />
                         </div>
                         <div className="md:col-span-3 space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Quantidade</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Quantidade</label>
                           <input 
                             type="number"
+                            step="0.01"
                             value={prod.quantity}
-                            onChange={e => {
-                              const newProds = [...complementaryProducts];
-                              newProds[idx].quantity = Number(e.target.value);
-                              setComplementaryProducts(newProds);
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setSelectedComplementaryProducts(selectedComplementaryProducts.map((p, i) => 
+                                i === idx ? { ...p, quantity: val } : p
+                              ));
                             }}
-                            className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-primary font-mono text-sm"
                           />
                         </div>
                         <div className="md:col-span-3 space-y-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Preço Unitário</label>
-                          <input 
-                            type="number"
-                            value={prod.price}
-                            onChange={e => {
-                              const newProds = [...complementaryProducts];
-                              newProds[idx].price = Number(e.target.value);
-                              setComplementaryProducts(newProds);
-                            }}
-                            className="w-full bg-secondary-dark border border-border-dark rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-primary"
-                          />
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Preço Unitário</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-slate-500 text-xs font-bold">R$</span>
+                            <input 
+                              type="number"
+                              step="0.01"
+                              value={prod.price}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setSelectedComplementaryProducts(selectedComplementaryProducts.map((p, i) => 
+                                  i === idx ? { ...p, price: val } : p
+                                ));
+                              }}
+                              className="w-full bg-secondary-dark border border-border-dark rounded-lg pl-8 pr-3 py-2 outline-none focus:ring-1 focus:ring-primary font-mono text-sm text-emerald-400"
+                            />
+                          </div>
                         </div>
-                        <div className="md:col-span-3 space-y-1 flex flex-col justify-end">
-                          <div className="bg-primary/5 p-2 rounded-lg border border-primary/20">
-                            <span className="text-[10px] font-black text-primary uppercase block">Total Item</span>
-                            <p className="text-sm font-black text-white">R$ {((prod.price || 0) * (prod.quantity || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <div className="md:col-span-3 space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Subtotal</label>
+                          <div className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2 font-mono text-sm font-bold text-white">
+                            R$ {(prod.price * prod.quantity).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
                         </div>
                       </div>
@@ -1184,6 +1270,36 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                 className="w-full bg-primary text-white font-bold py-4 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-primary/20"
               >
                 Confirmar Condições
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Zoom da Imagem */}
+      <AnimatePresence>
+        {zoomImage && (
+          <div 
+            className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 cursor-zoom-out"
+            onClick={() => setZoomImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center"
+              onClick={e => e.stopPropagation()}
+            >
+              <img 
+                src={zoomImage} 
+                alt="Zoom" 
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl" 
+              />
+              <button 
+                onClick={() => setZoomImage(null)}
+                className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors backdrop-blur-sm"
+              >
+                <X size={24} />
               </button>
             </motion.div>
           </div>

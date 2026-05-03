@@ -11,6 +11,8 @@ export interface Material {
   id: number;
   name: string;
   price: number;
+  cost_price?: number;
+  markup?: number;
   quantity: number;
   description: string;
 }
@@ -109,6 +111,8 @@ export interface Supply {
   id: number;
   name: string;
   price_per_meter: number;
+  cost_price?: number;
+  markup?: number;
   minutes_per_meter: number;
   unit: string;
 }

@@ -16,14 +16,17 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
   const [materials, setMaterials] = useState<Material[]>([]);
   const [remnants, setRemnants] = useState<Remnant[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
-  const [activeSubTab, setActiveSubTab] = useState<'slabs' | 'remnants' | 'supplies'>('slabs');
+  const [complementaryProducts, setComplementaryProducts] = useState<any[]>([]);
+  const [activeSubTab, setActiveSubTab] = useState<'slabs' | 'remnants' | 'supplies' | 'complementary'>('slabs');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: '', price: '', quantity: '', description: '' });
+  const [formData, setFormData] = useState({ name: '', price: '', quantity: '', description: '', cost_price: '', markup: '50' });
   const [remnantFormData, setRemnantFormData] = useState({ material_id: '', width: '', length: '', quantity: '1', location: '', observations: '' });
-  const [supplyFormData, setSupplyFormData] = useState({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un' });
+  const [supplyFormData, setSupplyFormData] = useState({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un', cost_price: '', markup: '50' });
+  const [compProductFormData, setCompProductFormData] = useState({ name: '', description: '', image_url: '', unit: 'un', quantity: '', price: '', cost_price: '', markup: '50' });
   const [stockEntryMaterial, setStockEntryMaterial] = useState<Material | null>(null);
   const [stockAmount, setStockAmount] = useState('');
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
 
   const fetchMaterials = () => {
     fetch('/api/materials').then(r => r.json()).then(setMaterials);
@@ -37,10 +40,15 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     fetch('/api/remnants').then(r => r.json()).then(setRemnants);
   };
 
+  const fetchComplementaryProducts = () => {
+    fetch('/api/complementary-products').then(r => r.json()).then(setComplementaryProducts);
+  };
+
   useEffect(() => {
     fetchMaterials();
     fetchRemnants();
     fetchSupplies();
+    fetchComplementaryProducts();
   }, []);
 
   const filteredMaterials = materials.filter((material) =>
@@ -62,6 +70,14 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
   );
 
+  const filteredComplementary = complementaryProducts.filter((p) =>
+    !searchTerm || [
+      p.name,
+      p.description,
+      p.unit
+    ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
+  );
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +90,8 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
       body: JSON.stringify({
         ...formData,
         price: parseFloat(formData.price),
+        cost_price: parseFloat(formData.cost_price) || 0,
+        markup: parseFloat(formData.markup) || 0,
         quantity: parseFloat(formData.quantity)
       })
     });
@@ -141,6 +159,8 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
       body: JSON.stringify({
         ...supplyFormData,
         price_per_meter: parseFloat(supplyFormData.price_per_meter),
+        cost_price: parseFloat(supplyFormData.cost_price) || 0,
+        markup: parseFloat(supplyFormData.markup) || 0,
         minutes_per_meter: parseFloat(supplyFormData.minutes_per_meter)
       })
     });
@@ -156,10 +176,40 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     }
   };
 
+  const handleComplementarySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editingId ? `/api/complementary-products/${editingId}` : '/api/complementary-products';
+    const method = editingId ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...compProductFormData,
+        price: parseFloat(compProductFormData.price) || 0,
+        cost_price: parseFloat(compProductFormData.cost_price) || 0,
+        markup: parseFloat(compProductFormData.markup) || 0,
+        quantity: parseFloat(compProductFormData.quantity) || 0
+      })
+    });
+
+    if (res.ok) {
+      showToast(editingId ? "Produto atualizado!" : "Produto cadastrado!");
+      setCompProductFormData({ name: '', description: '', image_url: '', unit: 'un', quantity: '', price: '' });
+      setShowForm(false);
+      setEditingId(null);
+      fetchComplementaryProducts();
+    } else {
+      showToast("Erro ao salvar produto.", "error");
+    }
+  };
+
   const handleEdit = (m: Material) => {
     setFormData({
       name: m.name,
       price: m.price?.toString() || '0',
+      cost_price: m.cost_price?.toString() || '0',
+      markup: m.markup?.toString() || '50',
       quantity: m.quantity?.toString() || '0',
       description: m.description || ''
     });
@@ -173,11 +223,30 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     setSupplyFormData({
       name: s.name,
       price_per_meter: s.price_per_meter?.toString() || '0',
+      cost_price: s.cost_price?.toString() || '0',
+      markup: s.markup?.toString() || '50',
       minutes_per_meter: s.minutes_per_meter?.toString() || '0',
       unit: s.unit || 'un'
     });
     setEditingId(s.id);
     setActiveSubTab('supplies');
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleEditCompProduct = (p: any) => {
+    setCompProductFormData({
+      name: p.name,
+      description: p.description || '',
+      image_url: p.image_url || '',
+      unit: p.unit || 'un',
+      quantity: p.quantity?.toString() || '0',
+      cost_price: p.cost_price?.toString() || '0',
+      markup: p.markup?.toString() || '50',
+      price: p.price?.toString() || '0'
+    });
+    setEditingId(p.id);
+    setActiveSubTab('complementary');
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -202,6 +271,18 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
         fetchSupplies();
       } else {
         showToast("Erro ao excluir insumo.", "error");
+      }
+    }
+  };
+
+  const handleDeleteCompProduct = async (id: number) => {
+    if (confirm('Deseja realmente excluir este produto?')) {
+      const res = await fetch(`/api/complementary-products/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast("Produto removido.");
+        fetchComplementaryProducts();
+      } else {
+        showToast("Erro ao excluir produto.", "error");
       }
     }
   };
@@ -238,6 +319,18 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
             >
               Inventário de Retalhos
             </button>
+            <button 
+              onClick={() => { setActiveSubTab('supplies'); setShowForm(false); }}
+              className={`text-xs font-bold uppercase tracking-wider pb-1 transition-all ${activeSubTab === 'supplies' ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Insumos
+            </button>
+            <button 
+              onClick={() => { setActiveSubTab('complementary'); setShowForm(false); }}
+              className={`text-xs font-bold uppercase tracking-wider pb-1 transition-all ${activeSubTab === 'complementary' ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Produtos Complementares
+            </button>
           </div>
         </div>
         <button
@@ -253,7 +346,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
           className="w-full sm:w-auto bg-primary px-6 py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
         >
           {showForm ? <X size={20} /> : <Plus size={20} />}
-          {showForm ? 'Cancelar' : activeSubTab === 'slabs' ? 'Adicionar Chapa' : 'Lançar Retalho'}
+          {showForm ? 'Cancelar' : activeSubTab === 'slabs' ? 'Adicionar Chapa' : activeSubTab === 'remnants' ? 'Lançar Retalho' : activeSubTab === 'supplies' ? 'Novo Insumo' : 'Novo Produto'}
         </button>
       </div>
 
@@ -280,14 +373,44 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase">Preço por m² (R$)</label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Preço de Custo (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.cost_price}
+                  onChange={e => {
+                    const cost = e.target.value;
+                    const price = (parseFloat(cost) * (1 + parseFloat(formData.markup) / 100)).toFixed(2);
+                    setFormData({ ...formData, cost_price: cost, price: isNaN(parseFloat(price)) ? formData.price : price });
+                  }}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Markup / Margem (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.markup}
+                  onChange={e => {
+                    const m = e.target.value;
+                    const price = (parseFloat(formData.cost_price) * (1 + parseFloat(m) / 100)).toFixed(2);
+                    setFormData({ ...formData, markup: m, price: isNaN(parseFloat(price)) ? formData.price : price });
+                  }}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Preço de Venda por m² (R$)</label>
                 <input
                   required
                   type="number"
                   step="0.01"
                   value={formData.price}
                   onChange={e => setFormData({ ...formData, price: e.target.value })}
-                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary border-primary/50 text-primary font-bold"
                   placeholder="0.00"
                 />
               </div>
@@ -398,6 +521,217 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
               <div className="md:col-span-4 flex justify-end pt-4">
                 <button type="submit" className="bg-primary px-8 py-3 rounded-lg font-bold shadow-lg shadow-primary/20">
                   Salvar Retalho
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+        {showForm && activeSubTab === 'supplies' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <form onSubmit={handleSupplySubmit} className="bg-secondary-dark p-6 rounded-xl border border-border-dark grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-4 mb-2">
+                <h3 className="text-lg font-bold text-primary">{editingId ? 'Editar Insumo' : 'Novo Insumo'}</h3>
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Nome do Insumo</label>
+                <input
+                  required
+                  value={supplyFormData.name}
+                  onChange={e => setSupplyFormData({ ...supplyFormData, name: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Polimento de Borda"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Unidade</label>
+                <input
+                  required
+                  value={supplyFormData.unit}
+                  onChange={e => setSupplyFormData({ ...supplyFormData, unit: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="m, un, etc."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Mins. por Unid.</label>
+                <input
+                  required
+                  type="number"
+                  value={supplyFormData.minutes_per_meter}
+                  onChange={e => setSupplyFormData({ ...supplyFormData, minutes_per_meter: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Preço de Custo (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={supplyFormData.cost_price}
+                  onChange={e => {
+                    const cost = e.target.value;
+                    const price = (parseFloat(cost) * (1 + parseFloat(supplyFormData.markup) / 100)).toFixed(2);
+                    setSupplyFormData({ ...supplyFormData, cost_price: cost, price_per_meter: isNaN(parseFloat(price)) ? supplyFormData.price_per_meter : price });
+                  }}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Markup (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={supplyFormData.markup}
+                  onChange={e => {
+                    const m = e.target.value;
+                    const price = (parseFloat(supplyFormData.cost_price) * (1 + parseFloat(m) / 100)).toFixed(2);
+                    setSupplyFormData({ ...supplyFormData, markup: m, price_per_meter: isNaN(parseFloat(price)) ? supplyFormData.price_per_meter : price });
+                  }}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Preço de Venda (R$)</label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  value={supplyFormData.price_per_meter}
+                  onChange={e => setSupplyFormData({ ...supplyFormData, price_per_meter: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary border-primary/50 text-primary font-bold"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="md:col-span-4 flex justify-end pt-4">
+                <button type="submit" className="bg-primary px-8 py-3 rounded-lg font-bold shadow-lg shadow-primary/20">
+                  {editingId ? 'Atualizar Insumo' : 'Cadastrar Insumo'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+
+        {showForm && activeSubTab === 'complementary' && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <form onSubmit={handleComplementarySubmit} className="bg-secondary-dark p-6 rounded-xl border border-border-dark grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-4 mb-2">
+                <h3 className="text-lg font-bold text-primary">{editingId ? 'Editar Produto' : 'Novo Produto Complementar'}</h3>
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Nome do Produto</label>
+                <input
+                  required
+                  value={compProductFormData.name}
+                  onChange={e => setCompProductFormData({ ...compProductFormData, name: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Torneira Monocomando"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Unidade</label>
+                <input
+                  required
+                  value={compProductFormData.unit}
+                  onChange={e => setCompProductFormData({ ...compProductFormData, unit: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="un, kit, etc."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Preço de Custo (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={compProductFormData.cost_price}
+                  onChange={e => {
+                    const cost = e.target.value;
+                    const price = (parseFloat(cost) * (1 + parseFloat(compProductFormData.markup) / 100)).toFixed(2);
+                    setCompProductFormData({ ...compProductFormData, cost_price: cost, price: isNaN(parseFloat(price)) ? compProductFormData.price : price });
+                  }}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Markup (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={compProductFormData.markup}
+                  onChange={e => {
+                    const m = e.target.value;
+                    const price = (parseFloat(compProductFormData.cost_price) * (1 + parseFloat(m) / 100)).toFixed(2);
+                    setCompProductFormData({ ...compProductFormData, markup: m, price: isNaN(parseFloat(price)) ? compProductFormData.price : price });
+                  }}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="50"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Preço de Venda (R$)</label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  value={compProductFormData.price}
+                  onChange={e => setCompProductFormData({ ...compProductFormData, price: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary border-primary/50 text-primary font-bold"
+                  placeholder="0.00"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Quantidade em Estoque</label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  value={compProductFormData.quantity}
+                  onChange={e => setCompProductFormData({ ...compProductFormData, quantity: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="0"
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Detalhes Adicionais</label>
+                <input
+                  value={compProductFormData.description}
+                  onChange={e => setCompProductFormData({ ...compProductFormData, description: e.target.value })}
+                  className="w-full bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Cor, marca, modelo..."
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">URL da Imagem</label>
+                <div className="flex gap-2">
+                  <input
+                    value={compProductFormData.image_url}
+                    onChange={e => setCompProductFormData({ ...compProductFormData, image_url: e.target.value })}
+                    className="flex-1 bg-background-dark border border-border-dark rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Link da imagem..."
+                  />
+                  {compProductFormData.image_url && (
+                    <div className="w-12 h-12 rounded-lg border border-border-dark overflow-hidden bg-background-dark flex-shrink-0">
+                      <img src={compProductFormData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="md:col-span-4 flex justify-end pt-4">
+                <button type="submit" className="bg-primary px-8 py-3 rounded-lg font-bold shadow-lg shadow-primary/20">
+                  {editingId ? 'Atualizar Produto' : 'Cadastrar Produto'}
                 </button>
               </div>
             </form>
@@ -531,6 +865,74 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
             </div>
           )}
         </div>
+      ) : activeSubTab === 'complementary' ? (
+        <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-hidden shadow-xl">
+          <table className="w-full text-left">
+            <thead className="bg-white/5 border-b border-border-dark">
+              <tr>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Produto</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Unidade</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Estoque</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Preço Unit.</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500">Detalhes</th>
+                <th className="px-6 py-4 text-xs font-bold uppercase text-slate-500 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-dark">
+              {filteredComplementary.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500 italic">
+                    {complementaryProducts.length === 0 ? 'Nenhum produto cadastrado.' : 'Nenhum produto encontrado.'}
+                  </td>
+                </tr>
+              ) : filteredComplementary.map(p => (
+                <tr key={p.id} className="hover:bg-white/5 transition-colors group">
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div 
+                        onClick={() => p.image_url && setZoomImage(p.image_url)}
+                        className={`w-10 h-10 rounded-lg border border-border-dark overflow-hidden bg-background-dark flex-shrink-0 flex items-center justify-center ${p.image_url ? 'cursor-pointer hover:ring-2 hover:ring-primary transition-all' : ''}`}
+                      >
+                        {p.image_url ? (
+                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Package size={16} className="text-slate-600" />
+                        )}
+                      </div>
+                      <span className="font-bold text-sm text-primary">{p.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-[10px] bg-white/5 border border-white/10 px-2 py-1 rounded uppercase font-bold text-slate-400">
+                      {p.unit}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`font-black text-sm ${p.quantity < 3 ? 'text-orange-500' : 'text-white'}`}>
+                      {p.quantity}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-300">
+                    R$ {(p.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-500 italic">
+                    {p.description || '-'}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => handleEditCompProduct(p)} className="p-2 text-slate-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-all">
+                        <Settings size={16} />
+                      </button>
+                      <button onClick={() => handleDeleteCompProduct(p.id)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="bg-secondary-dark rounded-xl border border-border-dark overflow-hidden shadow-xl">
           <table className="w-full text-left">
@@ -641,6 +1043,36 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Zoom da Imagem */}
+      <AnimatePresence>
+        {zoomImage && (
+          <div 
+            className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 cursor-zoom-out"
+            onClick={() => setZoomImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative max-w-5xl max-h-[90vh] w-full h-full flex items-center justify-center"
+              onClick={e => e.stopPropagation()}
+            >
+              <img 
+                src={zoomImage} 
+                alt="Zoom" 
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl" 
+              />
+              <button 
+                onClick={() => setZoomImage(null)}
+                className="absolute top-4 right-4 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors backdrop-blur-sm"
+              >
+                <X size={24} />
+              </button>
             </motion.div>
           </div>
         )}
