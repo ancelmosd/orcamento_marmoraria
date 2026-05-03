@@ -435,8 +435,9 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
     doc.text('Prazo de execução:', 20, currentY);
     doc.setFont('helvetica', 'normal');
     
+    const signalPercent = (metaData && metaData.signalPercentage) || 50;
     const deadlineText = payment.useDynamicDeadline 
-      ? `Até ${quote.delivery_date ? new Date(quote.delivery_date + 'T12:00:00').toLocaleDateString('pt-BR') : 'a combinar'} se sinal de 50% for pago em até dois dias apartir da data do orçamento`
+      ? `Até ${quote.delivery_date ? new Date(quote.delivery_date + 'T12:00:00').toLocaleDateString('pt-BR') : 'a combinar'} se sinal de ${signalPercent}% for pago em até dois dias apartir da data do orçamento`
       : (payment.executionDeadline || 'A combinar');
       
     doc.text(deadlineText, 58, currentY);
@@ -451,7 +452,19 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
     doc.setFont('helvetica', 'bold');
     doc.text('Condições:', 20, currentY);
     doc.setFont('helvetica', 'normal');
-    doc.text(payment.conditions || 'A combinar', 58, currentY);
+    
+    let conditionsText = payment.conditions || 'A combinar';
+    if (metaData && metaData.paymentCondition) {
+      if (metaData.paymentCondition === 'avista') {
+        conditionsText = 'Pagamento à vista';
+      } else {
+        const signal = metaData.signalPercentage || 50;
+        const remainder = metaData.remainderType === 'avista' ? 'à vista' : `em ${metaData.installments} parcelas`;
+        conditionsText = `Sinal de ${signal}% e o restante ${remainder}`;
+      }
+    }
+    
+    doc.text(conditionsText, 58, currentY);
 
     if (payment.showBankData) {
       currentY += 4;

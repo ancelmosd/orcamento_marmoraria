@@ -43,6 +43,11 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed');
   const [deliveryDate, setDeliveryDate] = useState('');
+  const [paymentCondition, setPaymentCondition] = useState<'avista' | 'sinal'>('avista');
+  const [signalPercentage, setSignalPercentage] = useState(50);
+  const [remainderType, setRemainderType] = useState<'avista' | 'parcelas'>('avista');
+  const [installments, setInstallments] = useState(2);
+  const [showPaymentSettings, setShowPaymentSettings] = useState(false);
   const [complementaryProducts, setComplementaryProducts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -81,6 +86,10 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
                 setDiscountValue(Number(meta.discountValue) || 0);
                 setDiscountType(meta.discountType || 'fixed');
                 setComplementaryProducts(meta.complementaryProducts || []);
+                setPaymentCondition(meta.paymentCondition || 'avista');
+                setSignalPercentage(meta.signalPercentage || 50);
+                setRemainderType(meta.remainderType || 'avista');
+                setInstallments(meta.installments || 2);
               } else if (Array.isArray(meta)) {
                 // Compatibilidade com formato antigo (só array de módulos)
                 setAddedModules(meta);
@@ -344,6 +353,10 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
       deliveryFee,
       discountAmount,
       totalValue 
+      paymentCondition,
+      signalPercentage,
+      remainderType,
+      installments
     };
   }, [addedModules, selectedMaterialId, materials, services, supplies, installationRate, deliveryFee, discountValue, discountType, complementaryProducts]);
 
@@ -944,7 +957,16 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
 
         <div className="space-y-6">
           <div className="bg-secondary-dark p-6 rounded-2xl border border-border-dark sticky top-24 space-y-6">
-            <h3 className="text-xl font-bold flex items-center gap-2"><Calculator className="text-primary" /> Resumo Final</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold flex items-center gap-2"><Calculator className="text-primary" /> Resumo Final</h3>
+              <button 
+                onClick={() => setShowPaymentSettings(true)}
+                className="p-2 hover:bg-white/5 rounded-full text-slate-500 hover:text-primary transition-colors"
+                title="Configurar Condições de Pagamento"
+              >
+                <Settings size={20} />
+              </button>
+            </div>
             <div className="space-y-3 pt-2">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Material</span>
@@ -1047,6 +1069,122 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
           </div>
         </div>
       </div>
+
+      {/* Modal de Condições de Pagamento */}
+      <AnimatePresence>
+        {showPaymentSettings && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-secondary-dark border border-border-dark rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-6"
+            >
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-primary">
+                  <Settings size={20} /> Condições de Pagamento
+                </h3>
+                <button onClick={() => setShowPaymentSettings(false)} className="p-2 hover:bg-white/5 rounded-full text-slate-500">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setPaymentCondition('avista')}
+                    className={`py-3 rounded-xl font-bold text-sm transition-all border ${paymentCondition === 'avista' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-background-dark/50 text-slate-400 border-border-dark hover:bg-white/5'}`}
+                  >
+                    À Vista
+                  </button>
+                  <button
+                    onClick={() => setPaymentCondition('sinal')}
+                    className={`py-3 rounded-xl font-bold text-sm transition-all border ${paymentCondition === 'sinal' ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-background-dark/50 text-slate-400 border-border-dark hover:bg-white/5'}`}
+                  >
+                    Com Sinal
+                  </button>
+                </div>
+
+                {paymentCondition === 'sinal' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-4 p-4 bg-background-dark/50 rounded-2xl border border-border-dark"
+                  >
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Porcentagem do Sinal (%)</label>
+                      <input 
+                        type="number"
+                        value={signalPercentage}
+                        onChange={e => setSignalPercentage(Number(e.target.value))}
+                        className="w-full bg-secondary-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Restante do Pagamento</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setRemainderType('avista')}
+                          className={`py-2 rounded-lg font-bold text-[10px] uppercase transition-all border ${remainderType === 'avista' ? 'bg-white/10 text-white border-white/20' : 'bg-transparent text-slate-500 border-border-dark'}`}
+                        >
+                          À Vista
+                        </button>
+                        <button
+                          onClick={() => setRemainderType('parcelas')}
+                          className={`py-2 rounded-lg font-bold text-[10px] uppercase transition-all border ${remainderType === 'parcelas' ? 'bg-white/10 text-white border-white/20' : 'bg-transparent text-slate-500 border-border-dark'}`}
+                        >
+                          Parcelas
+                        </button>
+                      </div>
+
+                      {remainderType === 'parcelas' && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="space-y-2"
+                        >
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Número de Parcelas</label>
+                          <input 
+                            type="number"
+                            min="2"
+                            value={installments}
+                            onChange={e => setInstallments(Number(e.target.value))}
+                            className="w-full bg-secondary-dark border border-border-dark rounded-xl px-4 py-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                          />
+                        </motion.div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              <div className="pt-2">
+                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/20">
+                  <p className="text-xs font-bold text-primary uppercase mb-2">Resumo da Condição</p>
+                  <p className="text-sm text-slate-300">
+                    {paymentCondition === 'avista' ? (
+                      "Pagamento integral no ato da aprovação/entrega."
+                    ) : (
+                      <>
+                        Sinal de <strong>{signalPercentage}%</strong> (R$ {(quickStats.totalValue * signalPercentage / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) 
+                        e o restante {remainderType === 'avista' ? "à vista" : `em ${installments}x de R$ ${((quickStats.totalValue * (100 - signalPercentage) / 100) / installments).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}.
+                      </>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowPaymentSettings(false)}
+                className="w-full bg-primary text-white font-bold py-4 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+              >
+                Confirmar Condições
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
