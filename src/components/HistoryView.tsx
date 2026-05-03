@@ -777,7 +777,17 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                 </div>
               </div>
 
-              <div className="p-6 bg-white/5 border-t border-border-dark flex justify-end">
+              <div className="p-6 bg-white/5 border-t border-border-dark flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    if (selectedQuoteDetails) {
+                      generateQuotePDF(selectedQuoteDetails, 'recibo');
+                    }
+                  }}
+                  className="px-8 py-3 bg-pink-600 hover:bg-pink-700 rounded-xl font-bold text-sm transition-colors text-white flex items-center gap-2"
+                >
+                  <FileDigit size={18} /> Recibo
+                </button>
                 <button
                   onClick={() => setShowClientFinance(null)}
                   className="px-8 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold text-sm transition-colors text-white"
