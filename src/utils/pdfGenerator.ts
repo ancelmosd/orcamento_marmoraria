@@ -262,7 +262,7 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
             ...compProducts.map((prod: any) => {
               let description = (prod.name || 'Produto Complementar');
               if (prod.details) {
-                description += `\nDetalhes: ${prod.details}`;
+                description += `\n${prod.details}`;
               }
               const qty = Number(prod.quantity) || 0;
               const unitPrice = Number(prod.price) || 0;
