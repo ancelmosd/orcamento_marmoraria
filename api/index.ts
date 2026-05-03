@@ -288,26 +288,40 @@ app.get("/api/materials", async (req, res) => {
 });
 
 app.post("/api/materials", async (req, res) => {
-  const { name, price, quantity, description } = req.body;
+  const { name, price, quantity, description, cost_price, markup } = req.body;
   const material = await prisma.materials.create({
-    data: { name, price, quantity, description }
+    data: { 
+      name, 
+      price: parseFloat(price), 
+      quantity: parseFloat(quantity), 
+      description,
+      cost_price: parseFloat(cost_price) || 0,
+      markup: parseFloat(markup) || 0
+    }
   });
   res.json({ id: material.id });
 });
 
 app.put("/api/materials/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, price, quantity, description } = req.body;
+  const { name, price, quantity, description, cost_price, markup } = req.body;
   
   if (name !== undefined) {
     await prisma.materials.update({
       where: { id: parseInt(id) },
-      data: { name, price, quantity, description }
+      data: { 
+        name, 
+        price: parseFloat(price), 
+        quantity: parseFloat(quantity), 
+        description,
+        cost_price: parseFloat(cost_price) || 0,
+        markup: parseFloat(markup) || 0
+      }
     });
   } else {
     await prisma.materials.update({
       where: { id: parseInt(id) },
-      data: { quantity }
+      data: { quantity: parseFloat(quantity) }
     });
   }
   res.json({ success: true });
@@ -715,24 +729,40 @@ app.delete("/api/module-templates/:id", async (req, res) => {
 });
 
 app.get("/api/supplies", async (req, res) => {
-  const suppliesList = await prisma.supplies.findMany();
+  const suppliesList = await prisma.supplies.findMany({
+    orderBy: { id: 'desc' }
+  });
   res.json(suppliesList);
 });
 
 app.post("/api/supplies", async (req, res) => {
-  const { name, price_per_meter, minutes_per_meter, unit } = req.body;
+  const { name, price_per_meter, minutes_per_meter, unit, cost_price, markup } = req.body;
   const supply = await prisma.supplies.create({
-    data: { name, price_per_meter, minutes_per_meter, unit: unit || 'm' }
+    data: { 
+      name, 
+      price_per_meter: parseFloat(price_per_meter), 
+      minutes_per_meter: parseFloat(minutes_per_meter), 
+      unit: unit || 'm',
+      cost_price: parseFloat(cost_price) || 0,
+      markup: parseFloat(markup) || 0
+    }
   });
   res.json({ id: supply.id });
 });
 
 app.put("/api/supplies/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, price_per_meter, minutes_per_meter, unit } = req.body;
+  const { name, price_per_meter, minutes_per_meter, unit, cost_price, markup } = req.body;
   await prisma.supplies.update({
     where: { id: parseInt(id) },
-    data: { name, price_per_meter, minutes_per_meter, unit: unit || 'm' }
+    data: { 
+      name, 
+      price_per_meter: parseFloat(price_per_meter), 
+      minutes_per_meter: parseFloat(minutes_per_meter), 
+      unit: unit || 'm',
+      cost_price: parseFloat(cost_price) || 0,
+      markup: parseFloat(markup) || 0
+    }
   });
   res.json({ success: true });
 });
@@ -740,6 +770,56 @@ app.put("/api/supplies/:id", async (req, res) => {
 app.delete("/api/supplies/:id", async (req, res) => {
   const { id } = req.params;
   await prisma.supplies.delete({ where: { id: parseInt(id) } });
+  res.json({ success: true });
+});
+
+// Complementary Products API
+app.get("/api/complementary-products", async (req, res) => {
+  const products = await prisma.complementary_products.findMany({
+    orderBy: { id: 'desc' }
+  });
+  res.json(products);
+});
+
+app.post("/api/complementary-products", async (req, res) => {
+  const { name, description, image_url, unit, quantity, price, cost_price, markup } = req.body;
+  const product = await prisma.complementary_products.create({
+    data: {
+      name,
+      description,
+      image_url,
+      unit: unit || 'un',
+      quantity: parseFloat(quantity) || 0,
+      price: parseFloat(price) || 0,
+      cost_price: parseFloat(cost_price) || 0,
+      markup: parseFloat(markup) || 0
+    }
+  });
+  res.json({ id: product.id });
+});
+
+app.put("/api/complementary-products/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, description, image_url, unit, quantity, price, cost_price, markup } = req.body;
+  await prisma.complementary_products.update({
+    where: { id: parseInt(id) },
+    data: {
+      name,
+      description,
+      image_url,
+      unit: unit || 'un',
+      quantity: parseFloat(quantity) || 0,
+      price: parseFloat(price) || 0,
+      cost_price: parseFloat(cost_price) || 0,
+      markup: parseFloat(markup) || 0
+    }
+  });
+  res.json({ success: true });
+});
+
+app.delete("/api/complementary-products/:id", async (req, res) => {
+  const { id } = req.params;
+  await prisma.complementary_products.delete({ where: { id: parseInt(id) } });
   res.json({ success: true });
 });
 
@@ -808,7 +888,7 @@ app.get("/api/backup", async (req, res) => {
     const [
       clients, materials, services, quotes, quote_items, 
       quote_services, cut_plans, description_templates, 
-      module_templates, supplies
+      module_templates, supplies, complementary_products
     ] = await Promise.all([
       prisma.clients.findMany(),
       prisma.materials.findMany(),
@@ -819,7 +899,8 @@ app.get("/api/backup", async (req, res) => {
       prisma.cut_plans.findMany(),
       prisma.description_templates.findMany(),
       prisma.module_templates.findMany(),
-      prisma.supplies.findMany()
+      prisma.supplies.findMany(),
+      prisma.complementary_products.findMany()
     ]);
     const backupData = {
       version: "1.0",
@@ -827,7 +908,7 @@ app.get("/api/backup", async (req, res) => {
       data: {
         clients, materials, services, quotes, quote_items, 
         quote_services, cut_plans, description_templates, 
-        module_templates, supplies
+        module_templates, supplies, complementary_products
       }
     };
     res.setHeader('Content-Type', 'application/json');
@@ -854,6 +935,7 @@ app.post("/api/restore", upload.single('backup'), async (req, res) => {
       await tx.description_templates.deleteMany();
       await tx.module_templates.deleteMany();
       await tx.supplies.deleteMany();
+      await tx.complementary_products.deleteMany();
       if (data.clients?.length) await tx.clients.createMany({ data: data.clients });
       if (data.materials?.length) await tx.materials.createMany({ data: data.materials });
       if (data.services?.length) await tx.services.createMany({ data: data.services });
@@ -864,6 +946,7 @@ app.post("/api/restore", upload.single('backup'), async (req, res) => {
       if (data.description_templates?.length) await tx.description_templates.createMany({ data: data.description_templates });
       if (data.module_templates?.length) await tx.module_templates.createMany({ data: data.module_templates });
       if (data.supplies?.length) await tx.supplies.createMany({ data: data.supplies });
+      if (data.complementary_products?.length) await tx.complementary_products.createMany({ data: data.complementary_products });
     });
     fs.unlinkSync(req.file.path);
     res.json({ success: true });
