@@ -138,7 +138,9 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
         doc.text(company.name, pageWidth / 2, finalY + 5, { align: 'center' });
       }
 
-      return doc.save(`recibo_${quote.id}.pdf`);
+      const safeClientName = (quote.client_name || 'Cliente').replace(/\s+/g, '_');
+      const safeProjectName = (quote.project_name || 'Projeto').replace(/\s+/g, '_');
+      return doc.save(`recibo_${quote.id}_${safeClientName}_${safeProjectName}.pdf`);
     }
 
     // -- INFORMAÇÕES DO CLIENTE --
@@ -573,7 +575,10 @@ export const generateQuotePDF = (quote: any, companySettings: any = null, type: 
     doc.setFontSize(6.5);
     doc.text(`Agradecemos a preferência! Equipe ${company.name}.`, pageWidth / 2, pageHeight - 8, { align: 'center' });
 
-    const fileName = `${type === 'comercial' ? 'Proposta' : 'Orcamento'}_${quote.id || '0'}_${(quote.client_name || 'Cliente').replace(/\s+/g, '_')}.pdf`;
+    const safeClientName = (quote.client_name || 'Cliente').replace(/\s+/g, '_');
+    const safeProjectName = (quote.project_name || 'Projeto').replace(/\s+/g, '_');
+    const typeLabel = type === 'comercial' ? 'proposta' : 'orcamento';
+    const fileName = `${typeLabel}_${quote.id || '0'}_${safeClientName}_${safeProjectName}.pdf`;
     doc.save(fileName);
   } catch (error) {
     console.error('Error generating PDF:', error);
