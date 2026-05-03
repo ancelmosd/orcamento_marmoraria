@@ -554,7 +554,11 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
             deliveryFee,
             discountValue,
             discountType,
-            complementaryProducts
+            complementaryProducts,
+            paymentCondition,
+            signalPercentage,
+            remainderType,
+            installments
           }
         })
       });
