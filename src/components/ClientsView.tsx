@@ -325,10 +325,7 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
 
     fetch(`/api/quotes?client_id=${clientId}`).then(r => r.json()).then(setOrders).catch(() => setOrders([]));
     fetch(`/api/payments?client_id=${clientId}`).then(r => r.json()).then(setPayments).catch(() => setPayments([]));
-
-    // Mock appointments from localStorage
-    const saved = localStorage.getItem(`appointments_${clientId}`);
-    if (saved) setAppointments(JSON.parse(saved));
+    fetch(`/api/appointments?client_id=${clientId}`).then(r => r.json()).then(setAppointments).catch(() => setAppointments([]));
   };
 
   useEffect(() => {
@@ -337,16 +334,36 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
 
   const saveAppointments = (newItems: any[]) => {
     setAppointments(newItems);
-    localStorage.setItem(`appointments_${clientId}`, JSON.stringify(newItems));
   };
 
   const handleAddAppointment = (e: React.FormEvent) => {
     e.preventDefault();
-    const item = { ...newAppointment, id: Date.now() };
-    saveAppointments([...appointments, item]);
-    setNewAppointment({ title: '', date: '', time: '', type: 'Visita' });
-    setShowAppointmentForm(false);
-    showToast("Compromisso agendado!");
+    if (!newAppointment.date) {
+      showToast("Por favor, selecione uma data", "error");
+      return;
+    }
+    // Combina data e hora para criar um objeto Date válido
+    const combinedDate = new Date(`${newAppointment.date}T${newAppointment.time || '00:00'}:00`);
+    
+    const data = {
+      ...newAppointment,
+      date: combinedDate.toISOString(),
+      client_id: clientId,
+      status: 'pendente'
+    };
+    
+    fetch('/api/appointments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(saved => {
+      setAppointments([...appointments, saved]);
+      setNewAppointment({ title: '', date: '', time: '', type: 'Visita' });
+      setShowAppointmentForm(false);
+      showToast("Compromisso agendado!");
+    });
   };
 
   const handleAddPayment = async (e: React.FormEvent) => {
@@ -674,15 +691,16 @@ function ClientDetailView({ clientId, onBack, showToast }: { clientId: number, o
                           <p className="text-xs text-slate-500">{new Date(app.date).toLocaleDateString('pt-BR')} • {app.type}</p>
                         </div>
                       </div>
-                      <button
-                        onClick={() => {
-                          const updated = appointments.filter(a => a.id !== app.id);
-                          saveAppointments(updated);
-                        }}
-                        className="p-2 text-slate-600 hover:text-red-400 transition-colors"
-                      >
-                        <X size={16} />
-                      </button>
+                        <button
+                          onClick={async () => {
+                            await fetch(`/api/appointments/${app.id}`, { method: 'DELETE' });
+                            setAppointments(appointments.filter(a => a.id !== app.id));
+                            showToast("Compromisso removido");
+                          }}
+                          className="p-2 text-slate-600 hover:text-red-400 transition-colors"
+                        >
+                          <X size={16} />
+                        </button>
                     </div>
                   ))
                 )}

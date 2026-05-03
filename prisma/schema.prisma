@@ -17,6 +17,7 @@ model clients {
   created_at DateTime? @default(now())
   quotes     quotes[]
   payments   payments[]
+  appointments appointments[]
 }
 
 model cut_plans {
@@ -106,6 +107,7 @@ model quotes {
   quote_items    quote_items[]
   quote_services quote_services[]
   quote_photos   quote_photos[]
+  appointments   appointments[]
   clients        clients?         @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -167,3 +169,20 @@ model system_settings {
   key   String @unique
   value String // JSON string
 }
+
+model appointments {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  date        DateTime
+  type        String?  @default("Compromisso") // 'medição', 'entrega', 'reunião', etc.
+  status      String?  @default("pendente")   // 'pendente', 'concluido', 'cancelado'
+  client_id   Int?
+  quote_id    Int?
+  created_at  DateTime @default(now())
+  
+  clients     clients? @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  quotes      quotes?  @relation(fields: [quote_id], references: [id], onDelete: Cascade)
+}
+
+

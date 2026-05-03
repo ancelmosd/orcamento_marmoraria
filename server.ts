@@ -666,11 +666,57 @@ async function startServer() {
   app.patch("/api/quotes/:id/status", async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
-    await prisma.quotes.update({
-      where: { id: parseInt(id) },
-      data: { status }
-    });
-    res.json({ success: true });
+    
+    try {
+      console.log(`[Status Update] Updating quote #${id} to status: ${status}`);
+      
+      const quote = await prisma.quotes.update({
+        where: { id: parseInt(id) },
+        data: { status },
+        include: { clients: true }
+      });
+
+      // Se aprovado e tiver data de entrega, cria compromisso automático
+      if (status === 'Aprovado' && quote.delivery_date) {
+        console.log(`[Status Update] Quote #${id} approved. Checking delivery date: ${quote.delivery_date}`);
+        try {
+          const deliveryDate = new Date(quote.delivery_date);
+          
+          if (isNaN(deliveryDate.getTime())) {
+            console.warn(`[Status Update] Invalid delivery date for quote #${id}: ${quote.delivery_date}`);
+          } else {
+            // Verifica se já existe um compromisso para este orçamento
+            const existing = await prisma.appointments.findFirst({
+              where: { quote_id: quote.id, type: 'Entrega' }
+            });
+
+            if (!existing) {
+              console.log(`[Status Update] Creating automatic delivery appointment for quote #${id}`);
+              await prisma.appointments.create({
+                data: {
+                  title: `Entrega: ${quote.project_name}`,
+                  description: `Agendamento automático via aprovação do orçamento #${quote.id}`,
+                  date: deliveryDate,
+                  type: 'Entrega',
+                  client_id: quote.client_id,
+                  quote_id: quote.id,
+                  status: 'pendente'
+                }
+              });
+            } else {
+              console.log(`[Status Update] Delivery appointment already exists for quote #${id}`);
+            }
+          }
+        } catch (e) {
+          console.error("[Status Update] Error creating automatic appointment:", e);
+        }
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Status Update] Fatal Error:", error);
+      res.status(500).json({ error: "Failed to update status" });
+    }
   });
 
   app.patch("/api/quotes/:id", async (req, res) => {
@@ -961,6 +1007,82 @@ async function startServer() {
     } catch (error) {
       console.error("Restore error:", error);
       res.status(500).json({ error: "Falha ao processar arquivo de backup" });
+    }
+  });
+
+  // Appointments API
+  app.get("/api/appointments", async (req, res) => {
+    try {
+      const { client_id } = req.query;
+      const where = client_id ? { client_id: parseInt(client_id as string) } : {};
+      const appointments = await prisma.appointments.findMany({
+        where,
+        include: { clients: true },
+        orderBy: { date: 'asc' }
+      });
+      res.json(appointments.map(a => ({ ...a, client_name: a.clients?.name })));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch appointments" });
+    }
+  });
+
+  app.post("/api/appointments", async (req, res) => {
+    try {
+      const { title, description, date, type, status, client_id, quote_id } = req.body;
+      console.log("[Appointments API] Creating new appointment:", { title, date, client_id });
+      
+      const parsedDate = new Date(date);
+      if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ error: "Invalid date format" });
+      }
+
+      const appointment = await prisma.appointments.create({
+        data: { 
+          title, 
+          description, 
+          date: parsedDate, 
+          type: type || "Compromisso",
+          status: status || "pendente",
+          client_id: client_id ? parseInt(client_id.toString()) : null,
+          quote_id: quote_id ? parseInt(quote_id.toString()) : null
+        }
+      });
+      res.json(appointment);
+    } catch (error) {
+      console.error("[Appointments API] Error:", error);
+      res.status(500).json({ error: "Failed to create appointment" });
+    }
+  });
+
+  app.put("/api/appointments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, date, type, status } = req.body;
+      await prisma.appointments.update({
+        where: { id: parseInt(id) },
+        data: { 
+          title, 
+          description, 
+          date: new Date(date), 
+          type,
+          status 
+        }
+      });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update appointment" });
+    }
+  });
+
+  app.delete("/api/appointments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await prisma.appointments.delete({
+        where: { id: parseInt(id) }
+      });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete appointment" });
     }
   });
 
