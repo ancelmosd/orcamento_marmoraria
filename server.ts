@@ -672,6 +672,31 @@ async function startServer() {
     });
     res.json({ success: true });
   });
+
+  app.patch("/api/quotes/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = req.body;
+      const allowedFields = ['delivery_date', 'status', 'project_name'];
+      const updateData: any = {};
+      Object.keys(data).forEach(key => {
+        if (allowedFields.includes(key)) {
+          updateData[key] = data[key];
+        }
+      });
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "Nenhum campo válido para atualizar" });
+      }
+      await prisma.quotes.update({
+        where: { id: parseInt(id) },
+        data: updateData
+      });
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ error: e.message || 'Erro ao atualizar orçamento' });
+    }
+  });
   app.delete("/api/quotes/:id", async (req, res) => {
     const { id } = req.params;
     await prisma.$transaction([
