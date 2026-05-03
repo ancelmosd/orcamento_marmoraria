@@ -670,8 +670,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                         if (showExportModal.client_id) {
                           fetchClientPayments(showExportModal.client_id);
                         }
-                        setShowReceiptOptions(showExportModal);
-                        setReceiptAmount('');
+                        setSelectedQuoteDetails(showExportModal);
+                        setShowClientFinance({
+                          id: showExportModal.client_id,
+                          name: showExportModal.client_name
+                        });
                         setShowExportModal(null);
                       } else {
                         generateQuotePDF(showExportModal, opt.id);
