@@ -665,9 +665,18 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   <button
                     key={opt.id}
                     onClick={() => {
-                      generateQuotePDF(showExportModal, opt.id);
-                      setShowExportModal(null);
-                      showToast(`${opt.label} gerado com sucesso!`);
+                      if (opt.id === 'recibo') {
+                        if (showExportModal.client_id) {
+                          fetchClientPayments(showExportModal.client_id);
+                        }
+                        setShowReceiptOptions(showExportModal);
+                        setReceiptAmount('');
+                        setShowExportModal(null);
+                      } else {
+                        generateQuotePDF(showExportModal, opt.id);
+                        setShowExportModal(null);
+                        showToast(`${opt.label} gerado com sucesso!`);
+                      }
                     }}
                     className="flex flex-col items-center justify-center gap-2 p-4 rounded-[20px] bg-[#222834] border border-white/5 hover:border-primary/50 transition-all hover:bg-white/5 group"
                   >
