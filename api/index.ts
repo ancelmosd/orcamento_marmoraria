@@ -560,6 +560,27 @@ app.patch("/api/quotes/:id/status", async (req, res) => {
   res.json({ success: true });
 });
 
+app.patch("/api/quotes/:id", async (req, res) => {
+  const { id } = req.params;
+  const data = req.body;
+  
+  // Ensure we don't accidentally update things that shouldn't be here
+  const allowedFields = ['delivery_date', 'status', 'project_name'];
+  const updateData: any = {};
+  
+  Object.keys(data).forEach(key => {
+    if (allowedFields.includes(key)) {
+      updateData[key] = data[key];
+    }
+  });
+
+  await prisma.quotes.update({
+    where: { id: parseInt(id) },
+    data: updateData
+  });
+  res.json({ success: true });
+});
+
 app.delete("/api/quotes/:id", async (req, res) => {
   const { id } = req.params;
   await prisma.$transaction([

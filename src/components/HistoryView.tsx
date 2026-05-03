@@ -122,6 +122,22 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
     }
   };
 
+  const updateDeliveryDate = async (id: number, date: string) => {
+    try {
+      const res = await fetch(`/api/quotes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delivery_date: date })
+      });
+      if (res.ok) {
+        fetchQuotes();
+        showToast(`Data de entrega atualizada!`);
+      }
+    } catch (error) {
+      showToast("Erro ao atualizar data.", "error");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -165,9 +181,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Valor</p>
                   <p className="text-lg font-black text-primary">R$ {(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Data</p>
-                  <p className="text-xs font-bold text-slate-300">{quote.created_at ? new Date(quote.created_at).toLocaleDateString('pt-BR') : '-'}</p>
+                <div className="text-right" onClick={e => e.stopPropagation()}>
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Entrega</p>
+                  <input 
+                    type="date"
+                    value={quote.delivery_date || ''}
+                    onChange={(e) => updateDeliveryDate(quote.id, e.target.value)}
+                    className="bg-transparent border-none text-xs font-bold text-slate-300 outline-none p-0 text-right w-24"
+                  />
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
@@ -290,8 +311,13 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       </select>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-300">
-                    {quote.delivery_date ? quote.delivery_date.split('-').reverse().join('/') : '-'}
+                  <td className="px-6 py-4 text-sm font-medium text-slate-300" onClick={e => e.stopPropagation()}>
+                    <input 
+                      type="date"
+                      value={quote.delivery_date || ''}
+                      onChange={(e) => updateDeliveryDate(quote.id, e.target.value)}
+                      className="bg-transparent border-none text-current outline-none p-0 w-full"
+                    />
                   </td>
                   <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-2 transition-opacity">
