@@ -51,7 +51,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     fetchComplementaryProducts();
   }, []);
 
-  const filteredMaterials = materials.filter((material) =>
+  const filteredMaterials = (materials || []).filter((material) =>
     !searchTerm || [
       material.name,
       material.description,
@@ -60,7 +60,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
   );
 
-  const filteredRemnants = remnants.filter((r) =>
+  const filteredRemnants = (remnants || []).filter((r) =>
     !searchTerm || [
       r.material_name,
       r.location,
@@ -70,11 +70,18 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
     ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
   );
 
-  const filteredComplementary = complementaryProducts.filter((p) =>
+  const filteredComplementary = (complementaryProducts || []).filter((p) =>
     !searchTerm || [
       p.name,
       p.description,
       p.unit
+    ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
+  );
+
+  const filteredSupplies = (supplies || []).filter((s) =>
+    !searchTerm || [
+      s.name,
+      s.unit
     ].some((value) => normalizeSearchText(value).includes(normalizeSearchText(searchTerm)))
   );
 
@@ -98,7 +105,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
 
     if (res.ok) {
       showToast(editingId ? "Material atualizado!" : "Material cadastrado!");
-      setFormData({ name: '', price: '', quantity: '', description: '' });
+      setFormData({ name: '', price: '', quantity: '', description: '', cost_price: '', markup: '50' });
       setShowForm(false);
       setEditingId(null);
       fetchMaterials();
@@ -167,7 +174,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
 
     if (res.ok) {
       showToast(editingId ? "Insumo atualizado!" : "Insumo cadastrado!");
-      setSupplyFormData({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un' });
+      setSupplyFormData({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un', cost_price: '', markup: '50' });
       setShowForm(false);
       setEditingId(null);
       fetchSupplies();
@@ -195,7 +202,7 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
 
     if (res.ok) {
       showToast(editingId ? "Produto atualizado!" : "Produto cadastrado!");
-      setCompProductFormData({ name: '', description: '', image_url: '', unit: 'un', quantity: '', price: '' });
+      setCompProductFormData({ name: '', description: '', image_url: '', unit: 'un', quantity: '', price: '', cost_price: '', markup: '50' });
       setShowForm(false);
       setEditingId(null);
       fetchComplementaryProducts();
@@ -337,9 +344,10 @@ export default function MaterialsView({ searchTerm, showToast }: { searchTerm: s
           onClick={() => {
             if (showForm) {
               setEditingId(null);
-              setFormData({ name: '', price: '', quantity: '', description: '' });
+              setFormData({ name: '', price: '', quantity: '', description: '', cost_price: '', markup: '50' });
               setRemnantFormData({ material_id: '', width: '', length: '', quantity: '1', location: '', observations: '' });
-              setSupplyFormData({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un' });
+              setSupplyFormData({ name: '', price_per_meter: '', minutes_per_meter: '', unit: 'un', cost_price: '', markup: '50' });
+              setCompProductFormData({ name: '', description: '', image_url: '', unit: 'un', quantity: '', price: '', cost_price: '', markup: '50' });
             }
             setShowForm(!showForm);
           }}
