@@ -538,6 +538,23 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin">
+                {/* Galeria de Fotos no Topo */}
+                <div className="mb-8">
+                  <PhotoGallery quoteId={selectedQuoteDetails.id} showToast={showToast} />
+                </div>
+
+                {/* Resumo Financeiro */}
+                <div className="p-6 bg-white/5 border border-border-dark rounded-2xl flex justify-between items-end">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Data de Criação</p>
+                    <p className="text-sm font-bold">{selectedQuoteDetails.created_at ? new Date(selectedQuoteDetails.created_at).toLocaleString('pt-BR') : '-'}</p>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Valor Total</p>
+                    <p className="text-3xl font-black text-primary">R$ {(selectedQuoteDetails.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-primary">
                     <Layers size={18} />
@@ -588,21 +605,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-6 border-t border-border-dark flex justify-between items-end">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Data de Criação</p>
-                    <p className="text-sm font-bold">{selectedQuoteDetails.created_at ? new Date(selectedQuoteDetails.created_at).toLocaleString('pt-BR') : '-'}</p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Valor Total</p>
-                    <p className="text-3xl font-black text-primary">R$ {(selectedQuoteDetails.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
 
-                {/* Galeria de Fotos */}
-                <div className="pt-8 border-t border-border-dark">
-                  <PhotoGallery quoteId={selectedQuoteDetails.id} showToast={showToast} />
-                </div>
+
               </div>
 
               <div className="p-6 bg-white/5 border-t border-border-dark flex gap-3">
