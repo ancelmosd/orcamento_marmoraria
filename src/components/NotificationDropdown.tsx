@@ -34,7 +34,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           className="absolute right-0 mt-2 w-80 bg-secondary-dark border border-border-dark shadow-2xl rounded-xl z-50 overflow-hidden"
         >
           <div className="p-3 border-b border-border-dark font-bold flex justify-between items-center bg-background-dark/50">
-            <span>Avisos de Atraso</span>
+            <span>Notificações e Alertas</span>
             <div className="flex items-center gap-2">
               {notifications.length > 0 && (
                 <>
@@ -73,18 +73,28 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                       onClick={() => onItemClick(n)}
                     >
                       <div className="flex justify-between items-start">
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${n.type === 'payment_overdue' ? 'bg-orange-500/10 text-orange-400' : 'bg-red-500/10 text-red-400'}`}>
-                          {n.type === 'payment_overdue' ? 'Pagamento Atrasado' : 'Entrega Atrasada'}
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${
+                          n.type === 'payment_overdue' ? 'bg-orange-500/10 text-orange-400' : 
+                          n.type === 'appointment_reminder' ? 'bg-primary/10 text-primary' :
+                          'bg-red-500/10 text-red-400'
+                        }`}>
+                          {n.type === 'payment_overdue' ? 'Pagamento Atrasado' : 
+                           n.type === 'appointment_reminder' ? 'Compromisso Próximo' :
+                           'Entrega Atrasada'}
                         </span>
                         <span className="text-[10px] font-mono text-slate-500">#{n.id}</span>
                       </div>
                       <p className="text-sm font-bold mt-1 text-slate-100">{n.client_name}</p>
                       <div className="flex justify-between items-center mt-1">
                         <p className="text-xs text-slate-400 truncate max-w-[150px]">
-                          {n.type === 'payment_overdue' ? `Valor: R$ ${n.amount?.toLocaleString()}` : n.project_name}
+                          {n.type === 'payment_overdue' ? `Valor: R$ ${n.amount?.toLocaleString()}` : 
+                           n.type === 'appointment_reminder' ? n.title :
+                           n.project_name}
                         </p>
                         <p className="text-[10px] font-bold text-slate-500">
-                          {n.due_date ? new Date(n.due_date).toLocaleDateString('pt-BR') : (n.delivery_date?.split('-').reverse().join('/'))}
+                          {n.type === 'appointment_reminder' 
+                            ? new Date(n.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                            : (n.due_date ? new Date(n.due_date).toLocaleDateString('pt-BR') : (n.delivery_date?.split('-').reverse().join('/')))}
                         </p>
                       </div>
                     </div>

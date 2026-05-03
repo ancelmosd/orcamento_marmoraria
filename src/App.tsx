@@ -295,9 +295,37 @@ export default function App() {
                 <AnimatePresence>
                   {showNotifications && (
                     <NotificationDropdown
+                      show={showNotifications}
                       notifications={notifications}
                       onClose={() => setShowNotifications(false)}
-                      onAction={handleQuickAction}
+                      onItemClick={(n) => {
+                        if (n.type === 'payment_overdue') {
+                          handleTabChange('financial');
+                        } else if (n.type === 'appointment_reminder') {
+                          handleTabChange('dashboard');
+                        } else {
+                          handleTabChange('history');
+                        }
+                        setShowNotifications(false);
+                      }}
+                      onDismiss={async (key) => {
+                        await fetch('/api/notifications/dismiss', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ key })
+                        });
+                      }}
+                      onDismissAll={async (keys) => {
+                        for (const key of keys) {
+                          await fetch('/api/notifications/dismiss', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key })
+                          });
+                        }
+                      }}
+                      showToast={showToast}
+                      setNotifications={setNotifications}
                     />
                   )}
                 </AnimatePresence>

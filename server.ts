@@ -72,8 +72,35 @@ async function startServer() {
         due_date: p.due_date?.toISOString()
       }));
       
+      // Compromissos nas próximas 24 horas
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const upcomingAppointments = await prisma.appointments.findMany({
+        where: {
+          status: 'pendente',
+          date: {
+            gte: new Date(),
+            lte: tomorrow
+          }
+        },
+        include: { clients: true }
+      });
+
+      const formattedAppointments = upcomingAppointments.map(a => ({
+        id: a.id,
+        type: 'appointment_reminder' as const,
+        title: a.title,
+        client_name: a.clients?.name || "Geral",
+        date: a.date.toISOString()
+      }));
+      
       // Filtrar notificações dispensadas
-      const allNotifications = [...formattedDelayedQuotes, ...formattedOverduePayments];
+      const allNotifications = [
+        ...formattedDelayedQuotes, 
+        ...formattedOverduePayments,
+        ...formattedAppointments
+      ];
       const filtered = allNotifications.filter(n => !dismissedKeys.has(`${n.type}-${n.id}`));
 
       res.json(filtered);
@@ -1069,6 +1096,20 @@ async function startServer() {
         }
       });
       res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update appointment" });
+    }
+  });
+
+  app.patch("/api/appointments/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const updated = await prisma.appointments.update({
+        where: { id: parseInt(id) },
+        data: { status }
+      });
+      res.json(updated);
     } catch (error) {
       res.status(500).json({ error: "Failed to update appointment" });
     }

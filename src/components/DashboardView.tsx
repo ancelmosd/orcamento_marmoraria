@@ -250,8 +250,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, onAction })
                                 <span className={`text-[10px] font-black ${isSelected || isToday ? 'text-primary' : 'text-slate-500'}`}>{day}</span>
                                 <div className="mt-1 space-y-1">
                                   {dayApps.map(a => (
-                                    <div key={a.id} className={`text-[8px] p-1 rounded font-bold truncate ${a.type === 'Entrega' ? 'bg-emerald-500/10 text-emerald-500' : a.type === 'Medição' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`} title={`${a.title} ${a.client_name ? `- ${a.client_name}` : ''}`}>
-                                      {a.title}
+                                    <div key={a.id} className={`text-[8px] p-1 rounded font-bold truncate ${a.status === 'concluido' ? 'opacity-40 line-through' : ''} ${a.type === 'Entrega' ? 'bg-emerald-500/10 text-emerald-500' : a.type === 'Medição' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`} title={`${a.title} ${a.client_name ? `- ${a.client_name}` : ''}`}>
+                                      {a.status === 'concluido' && '✓ '}{a.title}
                                     </div>
                                   ))}
                                 </div>
@@ -364,22 +364,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, onAction })
                                 );
                               }
                               return dayApps.map(a => (
-                                <div key={a.id} className="p-3 bg-white/[0.03] border border-white/5 rounded-xl group hover:bg-white/[0.05] transition-all">
+                                <div key={a.id} className={`p-3 bg-white/[0.03] border border-white/5 rounded-xl group hover:bg-white/[0.05] transition-all ${a.status === 'concluido' ? 'opacity-60' : ''}`}>
                                   <div className="flex items-center justify-between mb-1">
                                     <span className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-widest ${a.type === 'Entrega' ? 'bg-emerald-500/10 text-emerald-500' : a.type === 'Medição' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
                                       {a.type}
                                     </span>
-                                    <button
-                                      onClick={() => {
-                                        fetch(`/api/appointments/${a.id}`, { method: 'DELETE' })
-                                          .then(() => setAppointments(appointments.filter(app => app.id !== a.id)));
-                                      }}
-                                      className="text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                                    >
-                                      <Trash2 size={10} />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                      <button 
+                                        onClick={() => {
+                                          const newStatus = a.status === 'concluido' ? 'pendente' : 'concluido';
+                                          fetch(`/api/appointments/${a.id}`, { 
+                                            method: 'PATCH',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ status: newStatus })
+                                          }).then(() => {
+                                            setAppointments(appointments.map(app => app.id === a.id ? { ...app, status: newStatus } : app));
+                                          });
+                                        }}
+                                        className={`p-1 rounded hover:bg-white/10 transition-all ${a.status === 'concluido' ? 'text-emerald-500' : 'text-slate-500'}`}
+                                        title={a.status === 'concluido' ? "Marcar como pendente" : "Marcar como concluído"}
+                                      >
+                                        <CheckSquare size={14} />
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          if (window.confirm("Tem certeza que deseja excluir este compromisso?")) {
+                                            fetch(`/api/appointments/${a.id}`, { method: 'DELETE' })
+                                              .then(() => setAppointments(appointments.filter(app => app.id !== a.id)));
+                                          }
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-red-500 transition-all"
+                                        title="Excluir"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
                                   </div>
-                                  <h4 className="text-xs font-bold text-white mb-0.5">{a.title}</h4>
+                                  <h4 className={`text-xs font-bold text-white mb-0.5 ${a.status === 'concluido' ? 'line-through text-slate-500' : ''}`}>{a.title}</h4>
                                   {a.client_name && <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter line-clamp-1">Cliente: {a.client_name}</p>}
                                 </div>
                               ));
@@ -426,7 +447,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, onAction })
                             </div>
                             <div className="space-y-1">
                               <div className="flex items-center gap-3">
-                                <h4 className="font-bold text-white">{app.title}</h4>
+                                <h4 className={`font-bold text-white ${app.status === 'concluido' ? 'line-through text-slate-500' : ''}`}>{app.title}</h4>
                                 <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${app.type === 'Entrega' ? 'bg-emerald-500/10 text-emerald-500' : app.type === 'Medição' ? 'bg-blue-500/10 text-blue-500' : 'bg-primary/10 text-primary'}`}>
                                   {app.type}
                                 </span>
@@ -444,15 +465,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ stats, onAction })
                                 {app.status === 'pendente' ? 'Pendente' : 'Concluído'}
                               </p>
                             </div>
-                            <button
-                              onClick={() => {
-                                fetch(`/api/appointments/${app.id}`, { method: 'DELETE' })
-                                  .then(() => setAppointments(appointments.filter(a => a.id !== app.id)));
-                              }}
-                              className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => {
+                                  const newStatus = app.status === 'concluido' ? 'pendente' : 'concluido';
+                                  fetch(`/api/appointments/${app.id}`, { 
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ status: newStatus })
+                                  }).then(() => {
+                                    setAppointments(appointments.map(a => a.id === app.id ? { ...a, status: newStatus } : a));
+                                  });
+                                }}
+                                className={`p-2 rounded-lg transition-all ${app.status === 'concluido' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+                                title={app.status === 'concluido' ? "Marcar como pendente" : "Marcar como concluído"}
+                              >
+                                <CheckSquare size={18} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm("Tem certeza que deseja excluir este compromisso?")) {
+                                    fetch(`/api/appointments/${app.id}`, { method: 'DELETE' })
+                                      .then(() => setAppointments(appointments.filter(a => a.id !== app.id)));
+                                  }
+                                }}
+                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                title="Excluir"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
