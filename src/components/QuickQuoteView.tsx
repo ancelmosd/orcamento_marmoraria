@@ -352,7 +352,7 @@ export default function QuickQuoteView({ showToast, editId, onSave, onCancel }: 
       installationCost,
       deliveryFee,
       discountAmount,
-      totalValue 
+      totalValue,
       paymentCondition,
       signalPercentage,
       remainderType,
