@@ -3,7 +3,7 @@ import {
   Search, Filter, Calendar, FileDown, MessageCircle, 
   Settings, X, Info, Layers, Construction, Camera,
   Briefcase, FileText, ListChecks, Banknote, ClipboardList, FileDigit,
-  Check, DollarSign
+  Check, DollarSign, LayoutGrid, List, MoreVertical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { normalizeSearchText } from '../utils/helpers';
@@ -33,6 +33,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   const [showReceiptOptions, setShowReceiptOptions] = useState<any | null>(null);
   const [receiptAmount, setReceiptAmount] = useState<string>('');
   const [receiptDescription, setReceiptDescription] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(localStorage.getItem('historyViewMode') as 'grid' | 'list' || 'grid');
+  const [showViewOptions, setShowViewOptions] = useState(false);
 
   const fetchQuotes = async (silent = false) => {
     try {
@@ -52,6 +54,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   useEffect(() => {
     fetchQuotes();
   }, []);
+
+  const handleViewModeChange = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('historyViewMode', mode);
+    setShowViewOptions(false);
+  };
 
 
   const filteredQuotes = (quotes || []).filter((quote) => 
@@ -171,249 +179,182 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
           <p className="text-primary text-sm font-semibold uppercase tracking-wider">Gestão de Pedidos</p>
           <h1 className="text-4xl font-black tracking-tight">Histórico</h1>
         </div>
+
+        <div className="relative">
+          <button 
+            onClick={() => setShowViewOptions(!showViewOptions)}
+            className="p-3 bg-secondary-dark border border-border-dark rounded-xl text-slate-400 hover:text-white transition-colors"
+          >
+            <MoreVertical size={20} />
+          </button>
+
+          <AnimatePresence>
+            {showViewOptions && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowViewOptions(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 mt-2 w-48 bg-secondary-dark border border-border-dark rounded-xl shadow-2xl z-20 overflow-hidden"
+                >
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={() => handleViewModeChange('grid')}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'hover:bg-white/5 text-slate-400'}`}
+                    >
+                      <LayoutGrid size={18} /> Visualização Grade
+                    </button>
+                    <button
+                      onClick={() => handleViewModeChange('list')}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'hover:bg-white/5 text-slate-400'}`}
+                    >
+                      <List size={18} /> Visualização Linha
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* Grid view for mobile */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:hidden">
+      {/* Unified Card Grid View */}
+      <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4" : "flex flex-col gap-2"}>
         {loading ? (
-          <div className="col-span-full py-12 text-center text-slate-500">Carregando...</div>
+          <div className="col-span-full py-24 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary mb-4"></div>
+            <p className="text-slate-500 font-medium tracking-widest uppercase text-[10px]">Carregando orçamentos...</p>
+          </div>
         ) : filteredQuotes.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-slate-500">Nenhum orçamento encontrado.</div>
+          <div className="col-span-full py-24 text-center bg-secondary-dark/30 rounded-3xl border border-dashed border-border-dark">
+            <div className="bg-white/5 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ClipboardList className="text-slate-600" size={32} />
+            </div>
+            <p className="text-slate-500 font-medium">Nenhum orçamento encontrado.</p>
+          </div>
         ) : (
           filteredQuotes.map((quote) => (
-            <div key={quote.id} className="bg-secondary-dark rounded-xl border border-border-dark p-4 space-y-4 cursor-pointer" onClick={() => fetchQuoteDetails(quote.id)}>
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] font-mono text-slate-500 mb-1">#{quote.id}</p>
-                  <h3 className="font-bold text-white leading-tight">{quote.client_name}</h3>
-                  <p className="text-xs text-slate-400 mt-1">{quote.project_name}</p>
+            <motion.div 
+              layout
+              key={quote.id} 
+              className={`group bg-secondary-dark hover:bg-[#1E2533] border border-border-dark hover:border-primary/30 rounded-2xl transition-all duration-300 shadow-lg hover:shadow-primary/5 relative overflow-hidden flex ${viewMode === 'grid' ? 'flex-col p-4 gap-3' : 'flex-col md:flex-row md:items-center py-1.5 px-4 gap-2 md:gap-4'}`}
+              onClick={() => fetchQuoteDetails(quote.id)}
+            >
+              {/* Info Principal + ID */}
+              <div className={`relative z-10 cursor-pointer flex flex-col justify-center ${viewMode === 'list' ? 'flex-1' : ''}`}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[10px] font-mono font-bold text-slate-400 bg-white/5 px-1.5 py-0.5 rounded-md leading-none">#{quote.id}</span>
+                  <h3 className="text-base font-black text-white group-hover:text-primary transition-colors line-clamp-1 leading-none">{quote.client_name || 'Sem Nome'}</h3>
                 </div>
-                <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-colors ${getStatusColor(quote.status || '')}`} onClick={(e) => e.stopPropagation()}>
-                  <select
-                    value={quote.status || 'Pendente'}
-                    onChange={(e) => updateStatus(quote.id, e.target.value)}
-                    className="bg-transparent border-none text-current outline-none cursor-pointer font-bold uppercase"
-                  >
-                    <option value="Pendente" className="text-black">Pendente</option>
-                    <option value="Aprovado" className="text-black">Aprovado</option>
-                    <option value="Em Produção" className="text-black">Em Produção</option>
-                    <option value="Entregue" className="text-black">Entregue</option>
-                    <option value="Cancelado" className="text-black">Cancelado</option>
-                  </select>
-                </div>
+                <p className="text-[11px] text-slate-400 font-medium line-clamp-1 flex items-center gap-1.5">
+                  <span className="w-1 h-1 rounded-full bg-primary/40"></span>
+                  {quote.project_name || 'Sem referência de projeto'}
+                </p>
               </div>
-              <div className="flex justify-between items-end pt-2 border-t border-white/5">
-                <div>
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Valor</p>
-                  <p className="text-lg font-black text-primary">R$ {(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                </div>
-                <div className="text-right" onClick={e => e.stopPropagation()}>
-                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Entrega</p>
-                  <input 
-                    type="date"
-                    value={quote.delivery_date || ''}
-                    onChange={(e) => updateDeliveryDate(quote.id, e.target.value)}
-                    className="bg-transparent border-none text-xs font-bold text-slate-300 outline-none p-0 text-right w-24"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(quote.id, quote.origin || 'standard');
-                  }}
-                  className="flex-1 py-2 bg-white/5 text-primary rounded-lg border border-border-dark flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
-                >
-                  <Settings size={14} /> Editar
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedGalleryId(quote.id);
-                  }}
-                  className="flex-1 py-2 bg-primary/10 text-primary rounded-lg border border-primary/20 flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
-                >
-                  <Camera size={14} /> Fotos
-                </button>
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    try {
-                      const res = await fetch(`/api/quotes/${quote.id}`);
-                      if (res.ok) {
-                        const fullQuote = await res.json();
-                        setShowExportModal(fullQuote);
-                      }
-                    } catch (err) {
-                      showToast("Erro ao carregar dados.", "error");
-                    }
-                  }}
-                  className="flex-1 py-2 bg-white/5 text-emerald-400 rounded-lg border border-border-dark flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
-                >
-                  <FileDown size={14} /> PDF
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const phone = (quote.clients?.phone || '').replace(/\D/g, '');
-                    const message = encodeURIComponent(`Olá ${quote.client_name || ''}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${quote.project_name || ''}\n*Valor:* R$ ${(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n*Status:* ${quote.status || ''}\n\nFicamos à disposição!`);
-                    window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
-                  }}
-                  className="flex-1 py-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 flex items-center justify-center gap-2 text-[10px] font-bold uppercase"
-                >
-                  <MessageCircle size={14} /> Zap
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setQuoteToDelete(quote.id);
-                  }}
-                  className="p-2 bg-red-500/10 text-red-400 rounded-lg border border-red-500/20"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
 
-      <div className="hidden md:block bg-secondary-dark rounded-xl border border-border-dark overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="border-b border-border-dark bg-white/5">
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">ID</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Cliente</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Projeto</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Data</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Valor</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Data Entrega</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-dark">
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-slate-500">Carregando orçamentos...</td>
-              </tr>
-            ) : quotes.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-slate-500">Nenhum orçamento encontrado.</td>
-              </tr>
-            ) : filteredQuotes.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-slate-500">Nenhum orçamento encontrado para essa busca.</td>
-              </tr>
-            ) : (
-              filteredQuotes.map((quote) => (
-                <tr
-                  key={quote.id}
-                  className="hover:bg-white/5 transition-colors group cursor-pointer"
-                  onClick={() => fetchQuoteDetails(quote.id)}
-                >
-                  <td className="px-6 py-4 text-sm font-mono text-slate-500">#{quote.id}</td>
-                  <td className="px-6 py-4 text-sm font-bold">{quote.client_name || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-300">{quote.project_name || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">
-                    {quote.created_at ? new Date(quote.created_at).toLocaleDateString('pt-BR') : '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-bold text-primary">
-                    R$ {(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
-                    <div className={`inline-flex items-center rounded-md px-2 py-1 text-[10px] font-bold uppercase transition-colors ${getStatusColor(quote.status || '')}`}>
-                      <select
-                        value={quote.status || 'Pendente'}
-                        onChange={(e) => updateStatus(quote.id, e.target.value)}
-                        className="bg-transparent border-none text-current outline-none cursor-pointer font-bold uppercase"
-                      >
-                        <option value="Pendente" className="text-black">Pendente</option>
-                        <option value="Aprovado" className="text-black">Aprovado</option>
-                        <option value="Em Produção" className="text-black">Em Produção</option>
-                        <option value="Entregue" className="text-black">Entregue</option>
-                        <option value="Cancelado" className="text-black">Cancelado</option>
-                      </select>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-300" onClick={e => e.stopPropagation()}>
+              {/* Datas e Valores */}
+              <div className={`relative z-10 ${viewMode === 'grid' ? 'grid grid-cols-2 gap-4 py-3 border-y border-white/5' : 'flex items-center gap-6 md:px-6'}`}>
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Valor do Projeto</p>
+                  <p className="text-lg font-black text-white">R$ {(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div className={`space-y-1 ${viewMode === 'grid' ? 'text-right' : ''}`} onClick={e => e.stopPropagation()}>
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Previsão Entrega</p>
+                  <div className={`flex items-center gap-2 group/date ${viewMode === 'grid' ? 'justify-end' : ''}`}>
+                    <Calendar size={12} className="text-primary opacity-50" />
                     <input 
                       type="date"
                       value={quote.delivery_date || ''}
                       onChange={(e) => updateDeliveryDate(quote.id, e.target.value)}
-                      className="bg-transparent border-none text-current outline-none p-0 w-full"
+                      className="bg-transparent border-none text-xs font-black text-slate-300 outline-none p-0 w-24 text-right cursor-pointer hover:text-primary transition-colors"
                     />
-                  </td>
-                  <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-end gap-2 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEdit(quote.id, quote.origin || 'standard');
-                        }}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
-                        title="Editar Orçamento"
-                      >
-                        <Settings size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedGalleryId(quote.id);
-                        }}
-                        className="p-1.5 bg-primary/10 rounded-md hover:bg-primary hover:text-white transition-colors text-primary"
-                        title="Ver Detalhes e Fotos"
-                      >
-                        <Camera size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const phone = (quote.clients?.phone || '').replace(/\D/g, '');
-                          const message = encodeURIComponent(`Olá ${quote.client_name || ''}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${quote.project_name || ''}\n*Valor:* R$ ${(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n*Status:* ${quote.status || ''}\n\nFicamos à disposição!`);
-                          window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
-                        }}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-emerald-500 hover:text-white transition-colors text-emerald-400"
-                        title="Enviar via WhatsApp"
-                      >
-                        <MessageCircle size={14} />
-                      </button>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            const res = await fetch(`/api/quotes/${quote.id}`);
-                            if (res.ok) {
-                              const fullQuote = await res.json();
-                              setShowExportModal(fullQuote);
-                            }
-                          } catch (err) {
-                            showToast("Erro ao carregar dados para exportação.", "error");
-                          }
-                        }}
-                        className="p-1.5 bg-white/5 rounded-md hover:bg-primary hover:text-white transition-colors text-emerald-400"
-                        title="Exportar Documento"
-                      >
-                        <FileDown size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQuoteToDelete(quote.id);
-                        }}
-                        className="p-1.5 bg-red-500/10 rounded-md hover:bg-red-500 hover:text-white transition-colors text-red-400 border border-red-500/20"
-                        title="Excluir"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rodapé e Ações */}
+              <div className={`flex items-center justify-between relative z-10 ${viewMode === 'grid' ? 'pt-1' : 'md:flex-1 md:justify-end md:gap-4'}`} onClick={(e) => e.stopPropagation()}>
+                <div className="flex flex-col justify-center gap-0.5">
+                  <div className={`flex items-center gap-1 text-[10px] text-slate-500 font-bold ${viewMode === 'list' ? 'hidden lg:flex' : ''}`}>
+                    <Calendar size={10} />
+                    {quote.created_at ? new Date(quote.created_at).toLocaleDateString('pt-BR') : '-'}
+                  </div>
+                  <div 
+                    className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider transition-all w-max ${getStatusColor(quote.status || '')}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <select
+                      value={quote.status || 'Pendente'}
+                      onChange={(e) => updateStatus(quote.id, e.target.value)}
+                      className="bg-transparent border-none text-current outline-none cursor-pointer font-black"
+                    >
+                      <option value="Pendente" className="text-black">Pendente</option>
+                      <option value="Aprovado" className="text-black">Aprovado</option>
+                      <option value="Em Produção" className="text-black">Em Produção</option>
+                      <option value="Entregue" className="text-black">Entregue</option>
+                      <option value="Cancelado" className="text-black">Cancelado</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => onEdit(quote.id, quote.origin || 'standard')}
+                    className="p-2 bg-white/5 hover:bg-primary/20 hover:text-primary rounded-xl transition-all border border-transparent hover:border-primary/20"
+                    title="Editar"
+                  >
+                    <Settings size={14} />
+                  </button>
+                  <button
+                    onClick={() => setSelectedGalleryId(quote.id)}
+                    className="p-2 bg-primary/5 hover:bg-primary/20 text-primary rounded-xl transition-all border border-primary/10"
+                    title="Fotos"
+                  >
+                    <Camera size={14} />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/quotes/${quote.id}`);
+                        if (res.ok) {
+                          const fullQuote = await res.json();
+                          setShowExportModal(fullQuote);
+                        }
+                      } catch (err) {
+                        showToast("Erro ao carregar dados.", "error");
+                      }
+                    }}
+                    className="p-2 bg-white/5 hover:bg-emerald-500/20 hover:text-emerald-400 rounded-xl transition-all border border-transparent hover:border-emerald-500/20"
+                    title="Exportar"
+                  >
+                    <FileDown size={14} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const phone = (quote.clients?.phone || '').replace(/\D/g, '');
+                      const message = encodeURIComponent(`Olá ${quote.client_name || ''}! Aqui está o resumo do seu orçamento:\n\n*Projeto:* ${quote.project_name || ''}\n*Valor:* R$ ${(quote.total_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n*Status:* ${quote.status || ''}\n\nFicamos à disposição!`);
+                      window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
+                    }}
+                    className="p-2 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl transition-all border border-emerald-500/20"
+                    title="WhatsApp"
+                  >
+                    <MessageCircle size={14} />
+                  </button>
+                  <button
+                    onClick={() => setQuoteToDelete(quote.id)}
+                    className="p-2 bg-red-500/5 hover:bg-red-500/20 text-red-400 rounded-xl transition-all border border-transparent hover:border-red-500/20"
+                    title="Excluir"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Efeito Visual de Fundo no Hover */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            </motion.div>
+          ))
+        )}
       </div>
 
       <AnimatePresence>

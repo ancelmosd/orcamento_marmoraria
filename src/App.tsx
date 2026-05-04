@@ -1,27 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Package, 
-  Calculator, 
-  Zap, 
-  Settings, 
-  LogOut, 
-  Menu, 
-  Bell, 
-  Search, 
-  Plus, 
-  Layers, 
-  History, 
-  Construction, 
-  Scissors, 
-  Box, 
+import {
+  LayoutDashboard,
+  Users,
+  Package,
+  Calculator,
+  Zap,
+  Settings,
+  LogOut,
+  Menu,
+  Bell,
+  Search,
+  Plus,
+  Layers,
+  History,
+  Construction,
+  Scissors,
+  Box,
   DollarSign,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  DashboardStats 
+import {
+  DashboardStats
 } from './types';
 import { generateQuotePDF } from './utils/pdfGenerator';
 import { Toast } from './components/Toast';
@@ -260,7 +260,7 @@ export default function App() {
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
-        <header className="h-16 border-b border-border-dark bg-secondary-dark/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40">
+        <header className="h-10 border-b border-border-dark bg-secondary-dark/50 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/5 rounded-lg transition-colors">
               <Menu className="w-5 h-5 text-slate-300" />
@@ -388,8 +388,8 @@ export default function App() {
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 bottom-0 z-[60]"
           >
-            <ModuleLibrary 
-              onClose={() => setIsLibraryOpen(false)} 
+            <ModuleLibrary
+              onClose={() => setIsLibraryOpen(false)}
               onAddModule={(module) => {
                 setModuleToImport(module);
                 if (activeTab !== 'quotes') {
